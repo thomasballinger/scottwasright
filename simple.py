@@ -6,6 +6,9 @@
 * what to do about scrolling up? On keypress, scroll all the way back down?
 
 * maybe scroll down all the way immediately? Have an option for that maybe?
+
+* Keep track of cursor position in total area,
+    then do math with times_scrolled in order to find screen position
 """
 
 
@@ -14,22 +17,27 @@ import os
 import re
 import tty
 
-def up(n=1): sys.stdout.write("[%dA" % n)
-def down(n=1): sys.stdout.write("[%dB" % n)
+def up(n=1):
+    if n: sys.stdout.write("[%dA" % n)
+def down(n=1):
+    if n: sys.stdout.write("[%dB" % n)
 def fwd(n=1):
-    if n == 0:
-        return
-    sys.stdout.write("[%dC" % n)
-def back(n=1): sys.stdout.write("[%dD" % n)
-def erase_end_of_line(): sys.stdout.write("[K")
+    if n: sys.stdout.write("[%dC" % n)
+def back(n=1):
+    if n: sys.stdout.write("[%dD" % n)
+def erase_rest_of_line(): sys.stdout.write("[K")
 
 QUERY_CURSOR_POSITION = "\x1b[6n"
 
 class TerminalWrapper(object):
+    """The model here is of a much larger screen, so ideally we can ignore scrolling"""
+
     def __init__(self):
         self.current_line = ''
         self.stdin_buffer = []
-        self.times_scrolled = 0
+        self.scroll_offset = 0
+        self.logical_lines = []
+        self.display_lines = []
 
     def get_char(self):
         """Use this in case a query was issued and input
@@ -40,34 +48,36 @@ class TerminalWrapper(object):
         else:
             return sys.stdin.read(1)
 
-    def get_pos(self):
+    def get_screen_position(self):
+        """Returns the terminal (row, column) of the cursor"""
         sys.stdout.write(QUERY_CURSOR_POSITION)
         resp = ''
         while True:
             c = sys.stdin.read(1)
             resp += c
-            m = re.search('\x1b\[(?P<row>\\d+);(?P<column>\\d+)R', resp)
+            m = re.search('(?P<extra>.*)\x1b\[(?P<row>\\d+);(?P<column>\\d+)R', resp)
             if m:
                 row = int(m.groupdict()['row'])
                 col = int(m.groupdict()['column'])
+                self.stdin_buffer.extend(list(m.groupdict()['extra']))
                 return (row, col)
 
-    def set_pos(self, (row, col)):
+    def set_screen_pos(self, (row, col)):
         sys.stdout.write("[%d;%dH" % (row, col))
 
     def scroll_down(self):
         sys.stderr.write("D")
-        self.scrolls += 1
+        self.scroll_offset += 1
 
     def get_screen_size(self):
-        orig = self.get_pos()
+        orig = self.get_screen_position()
         fwd(10000)
         down(10000)
-        size = self.get_pos()
-        self.set_pos(orig)
+        size = self.get_screen_position()
+        self.set_screen_pos(orig)
         return size
 
-    def our_space_on_screen(self):
+    def rows_above_below(self):
         """Returns the rows currently on screen that we can safely write to
         because we know what goes underneath
 
@@ -77,8 +87,8 @@ class TerminalWrapper(object):
         getting lines_above and lines_below seems useful - if neither is enough
         for an infobox, we should scroll down to make room
         """
-        pos = self.get_pos()
-        lines_above = pos[0] - self.start_row
+        pos = self.get_screen_position()
+        lines_above = pos[0] - self.initial_screen_row
         size = self.get_screen_size()
         lines_below = size[0] - pos[0]
         return lines_above, lines_below
@@ -86,12 +96,13 @@ class TerminalWrapper(object):
     def info_screen(self, msg):
         """msg should not have lines longer than current width of screen"""
         #TODO implement a max height these things can be
+        # Currently assumes cursor is on the output line
         back(1000)
-        orig = self.get_pos()
+        orig = self.get_screen_position()
         lines = msg.split('\n')
         width = max([len(line) for line in lines])
         info_height = len(lines)+2
-        above, below = self.our_space_on_screen()
+        above, below = self.rows_above_below()
         if above >= info_height:
             up(info_height)
         elif below >= info_height:
@@ -104,15 +115,18 @@ class TerminalWrapper(object):
 
         back(1000)
         sys.stdout.write('+'+'-'*width+'+')
+        erase_rest_of_line()
         for line in lines:
             down(1)
             back(1000)
             sys.stdout.write('|'+line+' '*(width - len(line))+'|')
+            erase_rest_of_line()
         down(1)
         back(1000)
         sys.stdout.write('+'+'-'*width+'+')
+        erase_rest_of_line()
         back(1000)
-        self.set_pos(orig)
+        self.set_screen_pos(orig)
 
     def rewrite_our_lines(self):
         """Rewrites saved lines to screen as they were before"""
@@ -124,34 +138,50 @@ class TerminalWrapper(object):
 
     def process_char(self, char):
         if char == '':
-            back(1)
+            self.pos[1] = max(self.pos[1] - 1, 1)
             self.current_line = self.current_line[:-1]
         elif char == "":
             raise KeyboardInterrupt()
         elif char == """""" or char == "\n" or char == "\r": # return key, processed, or ?
+            self.logical_lines.append(self.current_line)
+            self.display_lines.append(self.current_line) #TODO proper display line handling
             self.current_line = ''
+            self.pos[0] += 1 #TODO num display lines for current_line
+            self.pos[1] = 1
         else:
             self.current_line += char
-            pass
+            self.pos[1] += 1 #TODO handle wrapping
+        #TODO deal with characters that take up more than one space
 
     def _run(self):
         tty.setraw(sys.stdin)
-        self.start_row, _ = self.get_pos()
+        self.initial_screen_row, _ = self.get_screen_position()
+        self.pos = [0, 1]
         while True:
+            self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, self.pos[1]))
             c = self.get_char()
             self.process_char(c)
-            self.our_space_on_screen()
+            top_line_we_own = self.initial_screen_row - self.scroll_offset
+            for i, line in zip(range(top_line_we_own, top_line_we_own + len(self.display_lines)), self.display_lines):
+                if i > 0:
+                    self.set_screen_pos((i, 0))
+                    sys.stdout.write(line)
+                    erase_rest_of_line()
             back(1000)
+            for i in range(100):
+                down()
+                erase_rest_of_line()
+            self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, 0))
             sys.stdout.write(self.current_line)
-            erase_end_of_line()
+            erase_rest_of_line()
             self.info_screen(repr(self))
             fwd(len(self.current_line))
 
     def __repr__(self):
         s = ''
         s += '<TerminalWrapper\n'
-        s += " rows above/below:" + repr(self.our_space_on_screen()) + '\n'
-        s += " cursor_pos:" + repr(self.get_pos()) + '\n'
+        s += " rows above/below:" + repr(self.rows_above_below()) + '\n'
+        s += " cursor_pos:" + repr(self.get_screen_position()) + '\n'
         s += '>'
         return s
 
