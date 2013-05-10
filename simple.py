@@ -16,7 +16,10 @@ import tty
 
 def up(n=1): sys.stdout.write("[%dA" % n)
 def down(n=1): sys.stdout.write("[%dB" % n)
-def fwd(n=1): sys.stdout.write("[%dC" % n)
+def fwd(n=1):
+    if n == 0:
+        return
+    sys.stdout.write("[%dC" % n)
 def back(n=1): sys.stdout.write("[%dD" % n)
 def erase_end_of_line(): sys.stdout.write("[K")
 
@@ -50,10 +53,10 @@ class TerminalWrapper(object):
                 return (row, col)
 
     def set_pos(self, (row, col)):
-        print "[%d;%dH" % (row, col),
+        sys.stdout.write("[%d;%dH" % (row, col))
 
     def scroll_down(self):
-        print "D",
+        sys.stderr.write("D")
         self.scrolls += 1
 
     def get_screen_size(self):
@@ -83,6 +86,7 @@ class TerminalWrapper(object):
     def info_screen(self, msg):
         """msg should not have lines longer than current width of screen"""
         #TODO implement a max height these things can be
+        back(1000)
         orig = self.get_pos()
         lines = msg.split('\n')
         width = max([len(line) for line in lines])
@@ -124,6 +128,8 @@ class TerminalWrapper(object):
             self.current_line = self.current_line[:-1]
         elif char == "":
             raise KeyboardInterrupt()
+        elif char == """""" or char == "\n" or char == "\r": # return key, processed, or ?
+            self.current_line = ''
         else:
             self.current_line += char
             pass
@@ -135,10 +141,11 @@ class TerminalWrapper(object):
             c = self.get_char()
             self.process_char(c)
             self.our_space_on_screen()
-            self.info_screen(repr(self))
             back(1000)
             sys.stdout.write(self.current_line)
             erase_end_of_line()
+            self.info_screen(repr(self))
+            fwd(len(self.current_line))
 
     def __repr__(self):
         s = ''
