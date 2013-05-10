@@ -148,6 +148,8 @@ class TerminalWrapper(object):
             self.current_line = ''
             self.pos[0] += 1 #TODO num display lines for current_line
             self.pos[1] = 1
+            if self.pos[0] + self.initial_screen_row - self.scroll_offset > self.get_screen_size()[0]:
+                self.scroll_down()
         else:
             self.current_line += char
             self.pos[1] += 1 #TODO handle wrapping
