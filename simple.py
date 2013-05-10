@@ -88,7 +88,7 @@ class TerminalWrapper(object):
         for an infobox, we should scroll down to make room
         """
         pos = self.get_screen_position()
-        lines_above = pos[0] - self.initial_screen_row
+        lines_above = pos[0] - self.initial_screen_row + self.scroll_offset
         size = self.get_screen_size()
         lines_below = size[0] - pos[0]
         return lines_above, lines_below
@@ -182,6 +182,7 @@ class TerminalWrapper(object):
         s += '<TerminalWrapper\n'
         s += " rows above/below:" + repr(self.rows_above_below()) + '\n'
         s += " cursor_pos:" + repr(self.get_screen_position()) + '\n'
+        s += " pos:" + repr(self.pos) + '\n'
         s += '>'
         return s
 
