@@ -38,6 +38,8 @@ class TerminalWrapper(object):
         self.scroll_offset = 0
         self.logical_lines = []
         self.display_lines = []
+        self.initial_screen_row = None
+        self.pos = [0, 1]
 
     def get_char(self):
         """Use this in case a query was issued and input
@@ -158,7 +160,6 @@ class TerminalWrapper(object):
     def _run(self):
         tty.setraw(sys.stdin)
         self.initial_screen_row, _ = self.get_screen_position()
-        self.pos = [0, 1]
         while True:
             self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, self.pos[1]))
             c = self.get_char()
