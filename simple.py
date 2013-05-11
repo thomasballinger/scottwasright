@@ -7,8 +7,7 @@
 
 * maybe scroll down all the way immediately? Have an option for that maybe?
 
-* Keep track of cursor position in total area,
-    then do math with times_scrolled in order to find screen position
+* good deal of redraw optimizations to be made - nothing should disappear
 """
 
 
