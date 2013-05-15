@@ -190,7 +190,7 @@ class TerminalWrapper(object):
         sys.stdout.write(self.current_line)
         erase_rest_of_line()
         self.info_screen(repr(self))
-        fwd(len(self.current_line))
+        self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, self.pos[1]))
 
     def _run(self):
         tty.setraw(sys.stdin)
