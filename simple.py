@@ -14,6 +14,9 @@
   * on vertical smaller, scroll down iff we need the space
   * actually, on scroll up, perhaps th eright thing will just happen?
   * eventually catch the change window events, for now just compare size between paints
+
+
+Terminals never scroll up by themselves, right?
 """
 
 
@@ -33,24 +36,30 @@ def move_cursor_direction(char, n=1):
 up, down, fwd, back = [functools.partial(move_cursor_direction, char) for char in 'ABCD']
 
 def erase_rest_of_line(): sys.stdout.write("[K")
+def erase_line(): sys.stdout.write("[2K")
 
 class TerminalWrapper(object):
     """The model here is of a much larger screen, so scrolling can be ignored
     by the user of this api"""
 
     def __init__(self):
-        self.current_line = ''
         self.stdin_buffer = []
-        self.scroll_offset = 0
+
+        self.current_line = ''
         self.logical_lines = []
-
-        # lines separated whenever logical line length goes over
-        #   what the terminal width was at the time of original output
-        self.display_lines = []
-
-        self.initial_screen_row = None
-        self.pos = [0, 1]
+        self.display_lines = [] # lines separated whenever logical line
+                                # length goes over what the terminal width
+                                # was at the time of original output
+        self.scroll_offset = 0
+        self.cursor_offset_in_line = 0
+        self.info_msg = '<filler info msg>'
         self.last_key_pressed = None
+        self.initial_screen_row = None # initialized in _run
+
+    @property
+    def current_line_start_screen_row(self):
+        """Should only be called when cursor is at a resting place"""
+
 
     def get_char(self):
         """Use this in case a query was issued and input
@@ -88,58 +97,12 @@ class TerminalWrapper(object):
         down(10000)
         size = self.get_screen_position()
         self.set_screen_pos(orig)
-        return size
+        #return size
+        return (size[0], 13)
 
-    def rows_above_below(self):
-        """Returns the rows currently on screen that we can safely write to
-        because we know what goes underneath
-
-        These lines are exactly as they appeared on screen at the time, not to do
-        with logical lines.
-
-        getting lines_above and lines_below seems useful - if neither is enough
-        for an infobox, we should scroll down to make room
-        """
-        pos = self.get_screen_position()
-        lines_above = pos[0] - self.initial_screen_row + self.scroll_offset
-        size = self.get_screen_size()
-        lines_below = size[0] - pos[0]
-        return lines_above, lines_below
-
-    def info_screen(self, msg):
+    def info_screen(self):
         """msg should not have lines longer than current width of screen"""
         #TODO implement a max height these things can be
-        # Currently assumes cursor is on the output line
-        back(1000)
-        orig = self.get_screen_position()
-        lines = msg.split('\n')
-        width = max([len(line) for line in lines])
-        info_height = len(lines)+2
-        above, below = self.rows_above_below()
-        if above >= info_height:
-            up(info_height)
-        elif below >= info_height:
-            down(1)
-        else:
-            for _ in range(info_height - below):
-                self.scroll_down()
-                up(1)
-            down(1)
-
-        back(1000)
-        sys.stdout.write('+'+'-'*width+'+')
-        erase_rest_of_line()
-        for line in lines:
-            down(1)
-            back(1000)
-            sys.stdout.write('|'+line+' '*(width - len(line))+'|')
-            erase_rest_of_line()
-        down(1)
-        back(1000)
-        sys.stdout.write('+'+'-'*width+'+')
-        erase_rest_of_line()
-        back(1000)
-        self.set_screen_pos(orig)
 
     def rewrite_our_lines(self):
         """Rewrites saved lines to screen as they were before"""
@@ -152,45 +115,144 @@ class TerminalWrapper(object):
     def process_char(self, char):
         self.last_key_pressed = char
         if char == '':
-            self.pos[1] = max(self.pos[1] - 1, 1)
+            self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
             self.current_line = self.current_line[:-1]
         elif char == "":
             raise KeyboardInterrupt()
         elif char == "":
             os.system('reset')
             sys.exit()
-        elif char == """""" or char == "\n" or char == "\r": # return key, processed, or ?
+        elif char == "\n" or char == "\r": # return key, processed, or ?
+            self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
-            self.display_lines.append(self.current_line) #TODO proper display line handling
+            self.display_lines.extend(self.display_linize(self.current_line))
             self.current_line = ''
-            self.pos[0] += 1 #TODO num display lines for current_line
-            self.pos[1] = 1
-            if self.pos[0] + self.initial_screen_row - self.scroll_offset > self.get_screen_size()[0]:
-                self.scroll_down()
+        elif char == "":
+            self.scroll_up()
+        elif char == "":
+            self.scroll_down()
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up
         else:
             self.current_line += char
-            self.pos[1] += 1 #TODO handle wrapping
+            self.cursor_offset_in_line += 1
         #TODO deal with characters that take up more than one space
 
-    def paint(self):
-        self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, self.pos[1]))
-        top_line_we_own = self.initial_screen_row - self.scroll_offset
-        for i, line in zip(range(top_line_we_own, top_line_we_own + len(self.display_lines)), self.display_lines):
-            if i > 0:
+    def display_linize(self, msg):
+        rows, columns = self.get_screen_size()
+        display_lines = ([self.current_line[start:end]
+                    for start, end in zip(
+                        range(0, len(self.current_line), columns),
+                        range(columns, len(self.current_line)+columns, columns))]
+                if self.current_line else [''])
+        return display_lines
+
+    def formatted_info(self, min_dimensions=None):
+        if min_dimensions is None:
+            pass
+        else:
+            raise NotImplementedError("currently relying on info being small enough")
+        lines = self.info_msg.split('\n')
+        #TODO do smarter formatting, inc. line wrapping
+        width = max([len(line) for line in lines])
+        output_lines = []
+        output_lines.append('+'+'-'*width+'+')
+        for line in lines:
+            output_lines.append('|'+line+' '*(width - len(line))+'|')
+        output_lines.append('+'+'-'*width+'+')
+        return output_lines
+
+    def force_down(self):
+        total_rows, _ = self.get_screen_size()
+        current_row, _ = self.get_screen_position()
+        if current_row == total_rows:
+            self.scroll_down()
+        down()
+
+    def paint_history(self):
+        rows, columns = self.get_screen_size()
+        first_screen_row_to_render = max(1, self.initial_screen_row - self.scroll_offset)
+        screen_row = first_screen_row_to_render
+        display_line_for_screen_line = lambda line: line - self.initial_screen_row + self.scroll_offset
+        while 0 <= display_line_for_screen_line(screen_row) < len(self.display_lines):
+            self.set_screen_pos((screen_row, 1))
+            sys.stdout.write(self.display_lines[display_line_for_screen_line(screen_row)][:columns])
+            erase_rest_of_line()
+            screen_row += 1
+
+    def paint_current_line(self):
+        rows, columns = self.get_screen_size()
+        self.set_screen_pos((self.initial_screen_row - self.scroll_offset + len(self.display_lines), 1))
+
+        def write_line(line):
+            back(1000)
+            sys.stdout.write(line)
+            erase_rest_of_line()
+
+        lines = self.display_linize(self.current_line)
+        line = lines[0]
+        write_line(line)
+        for line in lines[1:]:
+            self.force_down()
+            write_line(line)
+        if len(line) == columns:
+            self.force_down()
+            erase_line()
+        cur_row, cur_col = self.get_screen_position()
+        #for _ in range(rows - cur_row):
+        #    down()
+            #erase_line()
+
+    def paint_cursor(self):
+        rows, columns = self.get_screen_size()
+        cursor_screen_row = self.initial_screen_row - self.scroll_offset + len(self.display_lines) + (self.cursor_offset_in_line / columns)
+        for _ in range(cursor_screen_row - rows):
+            self.force_down()
+        cursor_screen_column = 1 + self.cursor_offset_in_line % columns
+        self.set_screen_pos((cursor_screen_row, cursor_screen_column))
+
+    def paint_infobox(self):
+        """
+
+        * figure out max space we get to render infobox above current line
+        * crop infobox to that size
+        * if space, render above, else scroll down and render below
+        """
+
+        rows, columns = self.get_screen_size()
+        lines = self.formatted_info()
+        space_above = self.initial_screen_row - self.scroll_offset + len(self.display_lines) + 1 - max(1, self.initial_screen_row - self.scroll_offset)
+        space_below = rows - (self.initial_screen_row - self.scroll_offset + len(self.display_lines) + (len(self.current_line) + 1) / columns)
+        if len(lines) > space_above:
+            pass
+        else:
+            for i, line in enumerate(lines):
                 self.set_screen_pos((i, 0))
                 sys.stdout.write(line)
                 erase_rest_of_line()
-        back(1000)
-        for i in range(100):
-            down()
-            erase_rest_of_line()
-        self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, 0))
-        sys.stdout.write(self.current_line)
-        erase_rest_of_line()
-        self.info_screen(repr(self))
-        self.set_screen_pos((self.pos[0] + self.initial_screen_row - self.scroll_offset, self.pos[1]))
+
+
+    def paint(self):
+        """Scrolls to new position if necessary, then paints everything
+        
+        * how many rows will current line take up, plus the cursor?
+        * how many rows will infobox take up?
+          * is there room for it above?
+          * if not, needs to go below
+        * based on where on screen the current line shows up, how many rows of history can we show above it?
+        * Scroll down as much is necessary for new rendering
+
+        """
+        #TODO Don't repaint everything every time! Don't even repaint the current line if not necessary
+        self.info_msg = repr(self)
+
+        self.
+
+        self.paint_history()
+        #self.paint_current_line()
+        self.paint_infobox()
+        self.paint_cursor()
+
 
     def _run(self):
         tty.setraw(sys.stdin)
@@ -207,9 +269,9 @@ class TerminalWrapper(object):
     def __repr__(self):
         s = ''
         s += '<TerminalWrapper\n'
-        s += " rows above/below:" + repr(self.rows_above_below()) + '\n'
         s += " cursor_pos:" + repr(self.get_screen_position()) + '\n'
-        s += " pos:" + repr(self.pos) + '\n'
+        s += " cursor_offset_in_line:" + repr(self.cursor_offset_in_line) + '\n'
+        s += " num display lines:" + repr(len(self.display_lines)) + '\n'
         s += " last key presed:" + repr(self.last_key_pressed) + '\n'
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'
         s += '>'
