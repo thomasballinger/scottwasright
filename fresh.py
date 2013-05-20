@@ -1,4 +1,7 @@
+"""
 
+
+"""
 
 import numpy
 import signal
@@ -6,19 +9,16 @@ import tty
 import sys
 import re
 import functools
+import os
+from itertools import izip
 
 def move_cursor_direction(char, n=1):
     if n: sys.stdout.write("[%d%s" % (n, char))
 up, down, fwd, back = [functools.partial(move_cursor_direction, char) for char in 'ABCD']
-
 def erase_rest_of_line(): sys.stdout.write("[K")
 def erase_line(): sys.stdout.write("[2K")
 
-
 class Terminal(object):
-    """I
-
-    in_stream should be in raw mod"""
 
     QUERY_CURSOR_POSITION = "\x1b[6n"
 
@@ -32,20 +32,43 @@ class Terminal(object):
     def render_to_terminal(self, array):
         """the thing that's hard to test
 
-        assumes we're in raw mode
+        If array received is of width too small, render it anyway
+        if array received is of width too large, render it anyway
+        if array received is of height too small, render it anyway
+        if array received is of height too large, render it, scroll down,
+            and render the rest of it, then return how much we scrolled down
         """
-        for i, line in zip(range(1, array.shape[0]+1), array):
-            self.set_screen_pos((i, 1))
-            self.out_stream.write(''.join(line))
+        #TODO add cool render-on-change caching
+
+        # note for the uninitiated:
+        #  * izip doesn't read beyond where it's supposed to in it's first iterable,
+        #      zip can (first iterable next()'d before second, when StopIteration happens
+        height, width = self.get_screen_size()
+        lines = iter(array)
+        rows = iter(range(1, height+1))
+        for row, line in izip(rows, lines):
+            self.set_screen_pos((row, 1))
+            self.out_stream.write(''.join(line[:(width+1)]))
+        for row in rows: # if array too small
+            self.set_screen_pos((row, 1))
+            #erase_line()
+        scrolls = 0
+        for line in lines: # if array too big
+            scrolls += 1
+            self.out_stream.write("D")
+            self.set_screen_pos((height, 1)) # since scrolling moves the cursor
+            self.out_stream.write("".join(line[:(width+1)]))
+        return scrolls
 
     def window_change_event(self):
         raise Exception("Window Change Event")
+        #TODO this should be in the same input stream, so we need concurrency?
 
     def get_char(self):
         if self.in_buffer:
             return self.in_buffer.pop(0)
         else:
-            self.in_stream.read(1)
+            return self.in_stream.read(1)
 
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
@@ -65,6 +88,7 @@ class Terminal(object):
         sys.stdout.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
+        #TODO generalize get_screen_position code and use it here instead
         orig = self.get_screen_position()
         fwd(10000)
         down(10000)
@@ -72,13 +96,69 @@ class Terminal(object):
         self.set_screen_pos(orig)
         return size
 
+    def array_from_text(self, msg):
+        rows, columns = self.get_screen_size()
+        a = numpy.array([[' ' for _ in range(columns)] for _ in range(rows)])
+        i = 0
+        for c in msg:
+            if i >= a.size:
+                return a
+            elif c in '\r\n':
+                i = ((i / columns) + 1) * columns
+            else:
+                a.flat[i] = c
+            i += 1
+        return a
+
+def test():
+    t = Terminal(sys.stdin, sys.stdout)
+    rows, columns = t.get_screen_size()
+    while True:
+        c = t.get_char()
+        if c == "":
+            sys.exit()
+        elif c == "h":
+            t.render_to_terminal(t.array_from_text("a for small array"))
+        elif c == "a":
+            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows)]))
+        elif c == "s":
+            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows-1)]))
+        elif c == "d":
+            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows+1)]))
+        elif c == "":
+            [t.out_stream.write('\n') for _ in range(rows)]
+        else:
+            t.render_to_terminal(t.array_from_text("unknown command"))
+
 def main():
     t = Terminal(sys.stdin, sys.stdout)
     rows, columns = t.get_screen_size()
     import random
-    a = numpy.array([[random.choice('abcde')]*columns for _ in range(rows)])
+    goop = lambda l: [random.choice('aaabcddeeeefghiiijklmnooprssttuv        ') for _ in range(l)]
+    a = numpy.array([goop(columns) for _ in range(rows)])
     #for char in inputStream():
     t.render_to_terminal(a)
+    while True:
+        c = t.get_char()
+        if c == "":
+            sys.exit()
+        t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows)]))
+
+def safe_run(f):
+    try:
+        f()
+    finally:
+        os.system('reset')
+
+def test_array_from_text():
+    t = Terminal(sys.stdin, sys.stdout)
+    a = t.array_from_text('\n\nhey there\nyo')
+    os.system('reset')
+    for line in a:
+        print ''.join(line)
+    raw_input()
 
 if __name__ == '__main__':
-    main()
+    #safe_run(test_array_from_text)
+    safe_run(test)
+
