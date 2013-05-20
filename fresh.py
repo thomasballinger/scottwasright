@@ -1,7 +1,4 @@
-"""
-
-
-"""
+"""Terminal Wrapper which renders 2d arrays of characters to terminal"""
 
 import numpy
 import signal
@@ -157,4 +154,3 @@ def test_array_from_text():
 if __name__ == '__main__':
     #safe_run(test_array_from_text)
     safe_run(test)
-
