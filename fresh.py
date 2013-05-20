@@ -8,20 +8,9 @@ import signal
 import tty
 import sys
 import re
-import functools
 import os
-from itertools import izip
-
-def move_cursor_direction(char, n=1):
-    if n: sys.stdout.write("[%d%s" % (n, char))
-up, down, fwd, back = [functools.partial(move_cursor_direction, char) for char in 'ABCD']
-def erase_rest_of_line(): sys.stdout.write("[K")
-def erase_line(): sys.stdout.write("[2K")
 
 class Terminal(object):
-
-    QUERY_CURSOR_POSITION = "\x1b[6n"
-
     def __init__(self, in_stream, out_stream):
         tty.setraw(in_stream)
         self.in_buffer = []
@@ -49,7 +38,7 @@ class Terminal(object):
         rest_of_rows = range(shared+1, height+1)
         for row in rest_of_rows: # if array too small
             self.set_screen_pos((row, 1))
-            erase_line()
+            self.erase_line()
         for line in rest_of_lines: # if array too big
             self.out_stream.write("D")
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
@@ -66,6 +55,15 @@ class Terminal(object):
         else:
             return self.in_stream.read(1)
 
+    QUERY_CURSOR_POSITION = "\x1b[6n"
+    def move_cursor_direction(char):
+        def func(self, n=1):
+            if n: self.out_stream.write("[%d%s" % (n, char))
+        return func
+    up, down, fwd, back = [move_cursor_direction(char) for char in 'ABCD']
+    def erase_rest_of_line(self): self.out_stream.write("[K")
+    def erase_line(self): self.out_stream.write("[2K")
+
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
         sys.stdout.write(Terminal.QUERY_CURSOR_POSITION)
@@ -81,13 +79,13 @@ class Terminal(object):
                 return (row, col)
 
     def set_screen_pos(self, (row, col)):
-        sys.stdout.write("[%d;%dH" % (row, col))
+        self.out_stream.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
         #TODO generalize get_screen_position code and use it here instead
         orig = self.get_screen_position()
-        fwd(10000)
-        down(10000)
+        self.fwd(10000)
+        self.down(10000)
         size = self.get_screen_position()
         self.set_screen_pos(orig)
         return size
