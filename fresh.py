@@ -1,5 +1,5 @@
 """
-
+Terminal wrapper that can be written to by a numpy array
 
 """
 
@@ -12,15 +12,7 @@ import functools
 import os
 from itertools import izip
 
-def move_cursor_direction(char, n=1):
-    if n: sys.stdout.write("[%d%s" % (n, char))
-up, down, fwd, back = [functools.partial(move_cursor_direction, char) for char in 'ABCD']
-def erase_rest_of_line(): sys.stdout.write("[K")
-def erase_line(): sys.stdout.write("[2K")
-
 class Terminal(object):
-
-    QUERY_CURSOR_POSITION = "\x1b[6n"
 
     def __init__(self, in_stream, out_stream):
         tty.setraw(in_stream)
@@ -29,7 +21,7 @@ class Terminal(object):
         self.out_stream = out_stream
         signal.signal(signal.SIGWINCH, lambda signum, frame: self.window_change_event())
 
-    def render_to_terminal(self, array):
+    def render_to_terminal(self, array, cursor_position=(0,0)):
         """the thing that's hard to test
 
         If array received is of width too small, render it anyway
@@ -40,9 +32,8 @@ class Terminal(object):
         """
         #TODO add cool render-on-change caching
 
-        # note for the uninitiated:
-        #  * izip doesn't read beyond where it's supposed to in it's first iterable,
-        #      zip can (first iterable next()'d before second, when StopIteration happens
+        # BUG! Both izip and zip consume an additional element off of rows
+        # if lines ends first!
         height, width = self.get_screen_size()
         lines = iter(array)
         rows = iter(range(1, height+1))
@@ -51,13 +42,14 @@ class Terminal(object):
             self.out_stream.write(''.join(line[:(width+1)]))
         for row in rows: # if array too small
             self.set_screen_pos((row, 1))
-            #erase_line()
+            self.erase_line()
         scrolls = 0
         for line in lines: # if array too big
             scrolls += 1
             self.out_stream.write("D")
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
             self.out_stream.write("".join(line[:(width+1)]))
+        self.set_screen_pos((cursor_position[0] - scrolls + 1, cursor_position[1] + 1))
         return scrolls
 
     def window_change_event(self):
@@ -69,6 +61,16 @@ class Terminal(object):
             return self.in_buffer.pop(0)
         else:
             return self.in_stream.read(1)
+
+    def _move_cursor_direction(char):
+        def func(self, n=1):
+            if n: self.out_stream.write("[%d%s" % (n, char))
+        return func
+    up, down, fwd, back = [_move_cursor_direction(char) for char in 'ABCD']
+
+    def erase_rest_of_line(self): self.out_stream.write("[K")
+    def erase_line(self): self.out_steam.write("[2K")
+    QUERY_CURSOR_POSITION = "\x1b[6n"
 
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
@@ -90,8 +92,8 @@ class Terminal(object):
     def get_screen_size(self):
         #TODO generalize get_screen_position code and use it here instead
         orig = self.get_screen_position()
-        fwd(10000)
-        down(10000)
+        self.fwd(10000)
+        self.down(10000)
         size = self.get_screen_position()
         self.set_screen_pos(orig)
         return size
