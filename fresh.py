@@ -40,25 +40,21 @@ class Terminal(object):
         """
         #TODO add cool render-on-change caching
 
-        # note for the uninitiated:
-        #  * izip doesn't read beyond where it's supposed to in it's first iterable,
-        #      zip can (first iterable next()'d before second, when StopIteration happens
         height, width = self.get_screen_size()
-        lines = iter(array)
-        rows = iter(range(1, height+1))
-        for row, line in izip(rows, lines):
+        shared = min(len(array), height)
+        for row, line in zip(range(1, height+1), array[:shared]):
             self.set_screen_pos((row, 1))
             self.out_stream.write(''.join(line[:(width+1)]))
-        for row in rows: # if array too small
+        rest_of_lines = array[shared:]
+        rest_of_rows = range(shared+1, height+1)
+        for row in rest_of_rows: # if array too small
             self.set_screen_pos((row, 1))
-            #erase_line()
-        scrolls = 0
-        for line in lines: # if array too big
-            scrolls += 1
+            erase_line()
+        for line in rest_of_lines: # if array too big
             self.out_stream.write("D")
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
             self.out_stream.write("".join(line[:(width+1)]))
-        return scrolls
+        return len(rest_of_lines)
 
     def window_change_event(self):
         raise Exception("Window Change Event")
@@ -125,6 +121,8 @@ def test():
             t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows-1)]))
         elif c == "d":
             t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows+1)]))
+        elif c == "f":
+            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows-2)]))
         elif c == "":
             [t.out_stream.write('\n') for _ in range(rows)]
         else:
