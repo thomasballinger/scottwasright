@@ -29,8 +29,8 @@ class AutoExtending(object):
         else:
             print 'I bet this will raise a slice index error'
         self.array.__setitem__(where, value)
-    def __getitem__(self, *args):
-        return self.array.__getitem__(*args)
+    def __getitem__(self, *args): return self.array.__getitem__(*args)
+    def __len__(self, *args): return self.array.__len__(*args)
     def __repr__(self):
         return self.array.__repr__()
     def __getattribute__(self, att):

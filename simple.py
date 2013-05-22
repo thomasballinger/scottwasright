@@ -40,10 +40,10 @@ class Repl(object):
         self.last_key_pressed = None
 
     def dumb_paint(self):
-        for line in self.display_lines:
-            print line
-        for line in self.display_linize(self.current_line, 15):
-            print line
+        a = self.paint(self.rows, self.columns)
+        for line in a:
+            print ''.join([line[i] for i in range(len(line))])
+        return max(len(a) - self.rows, 0)
 
     def dumb_input(self):
         for c in raw_input('>'):
@@ -157,7 +157,11 @@ class Repl(object):
 if __name__ == '__main__':
     r = Repl()
     r.initial_row = 0
+    r.columns = 14
+    r.rows = 10
+#TODO Don't pass around the screen size, just pass around how big to render things - so
+#     display_linize() doesn't need to be passed number of columns
     while True:
-        r.columns = 14
-        print r.paint(10, 14)
+        scrolled = r.dumb_paint()
+        r.scroll_offset += scrolled
         r.dumb_input()
