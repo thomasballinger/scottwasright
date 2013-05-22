@@ -1,5 +1,8 @@
 import numpy
 
+#TODO do something cooler and more rubust like
+#http://stackoverflow.com/a/9059858/398212
+
 class AutoExtending(object):
     """Numpy array wrapper that automatically extends rows down
 
@@ -17,9 +20,11 @@ class AutoExtending(object):
     def __setitem__(self, where, value):
         if isinstance(where, int):
             if where >= self.array.shape[0]:
+                print 'resizing to', where+1, self.array.shape[1]
                 self.array.resize(where + 1, self.array.shape[1])
         elif isinstance(where, tuple) and len(where) == 2:
             if where[0].stop > self.array.shape[0]:
+                print 'resizing to', where[0].stop, self.array.shape[1]
                 self.array.resize(where[0].stop, self.array.shape[1])
         else:
             print 'I bet this will raise a slice index error'

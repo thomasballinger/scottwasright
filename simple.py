@@ -7,8 +7,9 @@
 
 import sys
 import os
-import tty
-import signal
+import numpy
+
+from autoextend import AutoExtending
 
 class Repl(object):
     """
@@ -20,6 +21,10 @@ class Repl(object):
      -keystrokes
      -scroll down events
      -initial cursor position
+
+
+    Geometry information gets passed around, while REPL information is state
+      one the object
 """
 
     def __init__(self):
@@ -29,7 +34,7 @@ class Repl(object):
                                 # length goes over what the terminal width
                                 # was at the time of original output
 
-        self.initial_screen_row = None
+        self.initial_row = None
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
@@ -37,7 +42,7 @@ class Repl(object):
     def dumb_paint(self):
         for line in self.display_lines:
             print line
-        for line in self.display_linize(self.current_line):
+        for line in self.display_linize(self.current_line, 15):
             print line
 
     def dumb_input(self):
@@ -45,18 +50,6 @@ class Repl(object):
             if c in '/':
                 c = '\n'
             self.process_char(c)
-
-    @property
-    def current_line_start_screen_row(self):
-        """Should only be called when cursor is at a resting place"""
-
-    def rewrite_our_lines(self):
-        """Rewrites saved lines to screen as they were before"""
-
-    def write_line(self):
-        """Writes a new line, wrapping behavior imitating a normal write"""
-        #width = 
-        pass
 
     def process_char(self, char):
         self.last_key_pressed = char
@@ -84,118 +77,66 @@ class Repl(object):
             self.cursor_offset_in_line += 1
         #TODO deal with characters that take up more than one space
 
-    def display_linize(self, msg):
-        columns = self.columns
-        display_lines = ([self.current_line[start:end]
+    def display_linize(self, msg, columns=None):
+        if columns is None: columns = self.columns
+        display_lines = ([msg[start:end]
                     for start, end in zip(
-                        range(0, len(self.current_line), columns),
-                        range(columns, len(self.current_line)+columns, columns))]
+                        range(0, len(msg), columns),
+                        range(columns, len(msg)+columns, columns))]
                 if self.current_line else [''])
         return display_lines
 
-    def formatted_info(self, min_dimensions=None):
-        if min_dimensions is None:
-            pass
-        else:
-            raise NotImplementedError("currently relying on info being small enough")
-        lines = self.info_msg.split('\n')
-        #TODO do smarter formatting, inc. line wrapping
+    def formatted_info(self, msg, columns):
+        lines = msg.split('\n')
         width = max([len(line) for line in lines])
         output_lines = []
-        output_lines.append('+'+'-'*width+'+')
+        output_lines.extend(self.display_linize('+'+'-'*width+'+'), columns)
         for line in lines:
-            output_lines.append('|'+line+' '*(width - len(line))+'|')
-        output_lines.append('+'+'-'*width+'+')
+            output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|'), columns)
+        output_lines.extend(self.display_linize('+'+'-'*width+'+'), columns)
         return output_lines
 
-    def paint_history(self):
-        rows, columns = self.get_screen_size()
-        first_screen_row_to_render = max(1, self.initial_screen_row - self.scroll_offset)
-        screen_row = first_screen_row_to_render
-        display_line_for_screen_line = lambda line: line - self.initial_screen_row + self.scroll_offset
-        while 0 <= display_line_for_screen_line(screen_row) < len(self.display_lines):
-            self.set_screen_pos((screen_row, 1))
-            sys.stdout.write(self.display_lines[display_line_for_screen_line(screen_row)][:columns])
-            screen_row += 1
+    # All paint functions should
+    # * return an array of the width they were asked for
+    # * return an array not larger than the height they were asked for
 
-    def paint_current_line(self):
-        rows, columns = self.get_screen_size()
-        self.set_screen_pos((self.initial_screen_row - self.scroll_offset + len(self.display_lines), 1))
+    def paint_history(self, rows, columns):
+        lines = []
+        for r, line in zip(range(rows), self.display_lines[-rows:]):
+            lines.append((line+' '*1000)[:columns])
+        return numpy.array([list(s) for s in lines]) if lines else numpy.array([[]])
 
-        def write_line(line):
-            back(1000)
-            sys.stdout.write(line)
-            erase_rest_of_line()
+    def paint_current_line(self, rows, columns):
+        lines = self.display_linize(self.current_line, columns)
+        return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
 
-        lines = self.display_linize(self.current_line)
-        line = lines[0]
-        write_line(line)
-        for line in lines[1:]:
-            self.force_down()
-            write_line(line)
-        if len(line) == columns:
-            self.force_down()
-            erase_line()
-        cur_row, cur_col = self.get_screen_position()
-        #for _ in range(rows - cur_row):
-        #    down()
-            #erase_line()
+    def paint(self, rows, columns):
+        #TODO make an automatically extending 2d array
+        a = AutoExtending(rows, columns)
 
-    def paint_cursor(self):
-        rows, columns = self.get_screen_size()
-        cursor_screen_row = self.initial_screen_row - self.scroll_offset + len(self.display_lines) + (self.cursor_offset_in_line / columns)
-        for _ in range(cursor_screen_row - rows):
-            self.force_down()
-        cursor_screen_column = 1 + self.cursor_offset_in_line % columns
-        self.set_screen_pos((cursor_screen_row, cursor_screen_column))
+        first_line_we_own = max(0, self.initial_row - self.scroll_offset)
+        current_line_start_row = self.initial_row - self.scroll_offset + len(self.display_lines)
 
-    def paint_infobox(self):
-        """
+        history = self.paint_history(current_line_start_row, columns)
+        print 'current line start row', current_line_start_row
+        print 'history.shape', history.shape
+        a[first_line_we_own:history.shape[0],0:history.shape[1]] = history
 
-        * figure out max space we get to render infobox above current line
-        * crop infobox to that size
-        * if space, render above, else scroll down and render below
-        """
+        current_line = self.paint_current_line(rows, columns)
+        a[current_line_start_row:current_line_start_row + current_line.shape[0],
+            0:current_line.shape[1]] = current_line
 
-        rows, columns = self.get_screen_size()
-        lines = self.formatted_info()
-        space_above = self.initial_screen_row - self.scroll_offset + len(self.display_lines) + 1 - max(1, self.initial_screen_row - self.scroll_offset)
-        space_below = rows - (self.initial_screen_row - self.scroll_offset + len(self.display_lines) + (len(self.current_line) + 1) / columns)
-        if len(lines) > space_above:
-            pass
-        else:
-            for i, line in enumerate(lines):
-                self.set_screen_pos((i, 0))
-                sys.stdout.write(line)
-                erase_rest_of_line()
+        if current_line.shape[0] > rows:
+            return a
 
+        #self.paint_infobox()
+        #self.paint_cursor()
 
-    def paint(self):
-        """Scrolls to new position if necessary, then paints everything
-        
-        * how many rows will current line take up, plus the cursor?
-        * how many rows will infobox take up?
-          * is there room for it above?
-          * if not, needs to go below
-        * based on where on screen the current line shows up, how many rows of history can we show above it?
-        * Scroll down as much is necessary for new rendering
+        return a
 
-        """
-        #TODO Don't repaint everything every time! Don't even repaint the current line if not necessary
-        self.info_msg = repr(self)
-
-        self.paint_history()
-        #self.paint_current_line()
-        self.paint_infobox()
-        self.paint_cursor()
-
-
-    def _run(self):
-        tty.setraw(sys.stdin)
-        self.initial_screen_row, _ = self.get_screen_position()
-        signal.signal(signal.SIGWINCH, lambda signum, frame: self.window_change_event())
+    def run(self):
         while True:
-            self.paint()
+            print self.paint(10, 20)
             c = self.get_char()
             self.process_char(c)
 
@@ -213,15 +154,10 @@ class Repl(object):
         s += '>'
         return s
 
-    def run(self):
-        try:
-            self._run()
-        finally:
-            os.system('reset')
-
 if __name__ == '__main__':
     r = Repl()
+    r.initial_row = 0
     while True:
         r.columns = 14
-        r.dumb_paint()
+        print r.paint(10, 14)
         r.dumb_input()
