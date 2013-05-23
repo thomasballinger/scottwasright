@@ -41,8 +41,12 @@ class Repl(object):
 
     def dumb_paint(self):
         a = self.paint(self.rows, self.columns)
+        print 'X'*(self.columns+4)
+        print 'X'+(' '*(self.columns+2))+'X'
         for line in a:
-            print ''.join([line[i] for i in range(len(line))])
+            print 'X '+(''.join([line[i] for i in range(len(line))]) if line[0] else ' '*self.columns)+' X'
+        print 'X'+(' '*(self.columns+2))+'X'
+        print 'X'*(self.columns+4)
         return max(len(a) - self.rows, 0)
 
     def dumb_input(self):
@@ -86,16 +90,6 @@ class Repl(object):
                 if self.current_line else [''])
         return display_lines
 
-    def formatted_info(self, msg, columns):
-        lines = msg.split('\n')
-        width = max([len(line) for line in lines])
-        output_lines = []
-        output_lines.extend(self.display_linize('+'+'-'*width+'+'), columns)
-        for line in lines:
-            output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|'), columns)
-        output_lines.extend(self.display_linize('+'+'-'*width+'+'), columns)
-        return output_lines
-
     # All paint functions should
     # * return an array of the width they were asked for
     # * return an array not larger than the height they were asked for
@@ -109,6 +103,17 @@ class Repl(object):
     def paint_current_line(self, rows, columns):
         lines = self.display_linize(self.current_line, columns)
         return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
+
+    def paint_infobox(self, msg, rows, columns):
+        #TODO actually truncate infobox if necessary
+        lines = msg.split('\n')
+        width = max([len(line) for line in lines])
+        output_lines = []
+        output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
+        for line in lines:
+            output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|', columns))
+        output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
+        return numpy.array([(list(x)+[' ']*columns)[:columns] for x in output_lines][:rows])
 
     def paint(self, rows, columns):
         #TODO make an automatically extending 2d array
@@ -129,7 +134,13 @@ class Repl(object):
         if current_line.shape[0] > rows:
             return a
 
-        #self.paint_infobox()
+        space_above = history.shape[0]
+        space_below = rows - current_line_start_row - current_line.shape[0]
+        infobox = self.paint_infobox(repr(self), max(space_above, space_below), columns)
+        if space_above >= infobox.shape[0]:
+            a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
+        else:
+            a[current_line_start_row+current_line.shape[0]:current_line_start_row+current_line.shape[0]+infobox.shape[0], 0:infobox.shape[1]] = infobox
         #self.paint_cursor()
 
         return a
@@ -146,7 +157,6 @@ class Repl(object):
     def __repr__(self):
         s = ''
         s += '<TerminalWrapper\n'
-        s += " cursor_pos:" + repr(self.get_screen_position()) + '\n'
         s += " cursor_offset_in_line:" + repr(self.cursor_offset_in_line) + '\n'
         s += " num display lines:" + repr(len(self.display_lines)) + '\n'
         s += " last key presed:" + repr(self.last_key_pressed) + '\n'
@@ -157,8 +167,8 @@ class Repl(object):
 if __name__ == '__main__':
     r = Repl()
     r.initial_row = 0
-    r.columns = 14
-    r.rows = 10
+    r.columns = 50
+    r.rows = 20
 #TODO Don't pass around the screen size, just pass around how big to render things - so
 #     display_linize() doesn't need to be passed number of columns
     while True:
