@@ -14,18 +14,18 @@ from autoextend import AutoExtending
 class Repl(object):
     """
 
-    Renders 2d arrays of characters
-
     takes in:
      -terminal dimensions and change events
      -keystrokes
-     -scroll down events
+     -number of scroll downs necessary to render array
      -initial cursor position
-
+    outputs:
+     -2D array to be rendered
 
     Geometry information gets passed around, while REPL information is state
-      one the object
+      on the object
 """
+#TODO fix inconsistencies with self.columns versus columns - explicit or implicit state
 
     def __init__(self):
         self.current_line = ''
@@ -41,12 +41,12 @@ class Repl(object):
 
     def dumb_paint(self):
         a = self.paint(self.rows, self.columns)
-        print 'X'*(self.columns+4)
-        print 'X'+(' '*(self.columns+2))+'X'
+        print 'X'*(self.columns+8)
+        print 'X  '+(' '*(self.columns+2))+'  X'
         for line in a:
-            print 'X '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*self.columns)+' X'
-        print 'X'+(' '*(self.columns+2))+'X'
-        print 'X'*(self.columns+4)
+            print 'X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*self.columns)+'   X'
+        print 'X  '+(' '*(self.columns+2))+'  X'
+        print 'X'*(self.columns+8)
         return max(len(a) - self.rows, 0)
 
     def dumb_input(self):
@@ -139,8 +139,6 @@ class Repl(object):
             a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
         else:
             a[current_line_start_row+current_line.shape[0]:current_line_start_row+current_line.shape[0]+infobox.shape[0], 0:infobox.shape[1]] = infobox
-        #self.paint_cursor()
-
         return a
 
     def run(self):

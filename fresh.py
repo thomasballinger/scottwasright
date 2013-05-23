@@ -8,6 +8,19 @@ import re
 import os
 
 class Terminal(object):
+    """
+
+    Renders 2D arrays of characters
+
+    takes in:
+     -2D array to render
+     -cursor position
+    outputs:
+     -number of times scrolled
+     -keystrokes to be dealt with so a new array can be returned to display
+     -initial position of cursor on the screen
+
+    """
     def __init__(self, in_stream, out_stream):
         tty.setraw(in_stream)
         self.in_buffer = []
