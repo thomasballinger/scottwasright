@@ -14,18 +14,25 @@ class AutoExtending(object):
     >>> a[16:17, :] = 'j' * 14
     >>> a.shape, a[16, 0]
     ((17, 14), 'j')
+    >>> a[200, 1] = 'i'
+    >>> a[200, 1]
+    'i'
     """
     def __init__(self, rows, columns):
         self.array = numpy.zeros((rows, columns), dtype=numpy.character)
     def __setitem__(self, where, value):
         if isinstance(where, int):
             if where >= self.array.shape[0]:
-                print 'resizing to', where+1, self.array.shape[1]
                 self.array.resize(where + 1, self.array.shape[1])
         elif isinstance(where, tuple) and len(where) == 2:
-            if where[0].stop > self.array.shape[0]:
-                print 'resizing to', where[0].stop, self.array.shape[1]
-                self.array.resize(where[0].stop, self.array.shape[1])
+            if isinstance(where[0], int) and isinstance(where[1], int):
+                if where[0] > self.array.shape[0]:
+                    self.array.resize(where[0]+1, self.array.shape[1])
+            elif isinstance(where[0], slice):
+                if where[0].stop > self.array.shape[0]:
+                    self.array.resize(where[0].stop, self.array.shape[1])
+            else:
+                raise IndexError("slice spec "+repr(where)+" is no good")
         else:
             print 'I bet this will raise a slice index error'
         self.array.__setitem__(where, value)

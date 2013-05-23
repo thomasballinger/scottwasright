@@ -39,15 +39,18 @@ class Repl(object):
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
 
-    def dumb_paint(self):
-        a = self.paint(self.rows, self.columns)
-        print 'X'*(self.columns+8)
-        print 'X  '+(' '*(self.columns+2))+'  X'
+        self.display_line_width = None # the width to which to wrap the current line
+
+    def dumb_paint(self, rows, columns):
+        a, cpos = self.paint(rows, columns)
+        a[cpos[0], cpos[1]] = '~'
+        print 'X'*(columns+8)
+        print 'X  '+(' '*(columns+2))+'  X'
         for line in a:
-            print 'X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*self.columns)+'   X'
-        print 'X  '+(' '*(self.columns+2))+'  X'
-        print 'X'*(self.columns+8)
-        return max(len(a) - self.rows, 0)
+            print 'X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'   X'
+        print 'X  '+(' '*(columns+2))+'  X'
+        print 'X'*(columns+8)
+        return max(len(a) - rows, 0)
 
     def dumb_input(self):
         for c in raw_input('>'):
@@ -68,26 +71,25 @@ class Repl(object):
         elif char == "\n" or char == "\r": # return key, processed, or ?
             self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
-            self.display_lines.extend(self.display_linize(self.current_line))
+            self.display_lines.extend(self.display_linize(self.current_line, self.display_line_width))
             self.current_line = ''
         elif char == "":
             self.scroll_up()
         elif char == "":
             self.scroll_down()
         elif char == "" or char == "":
-            pass #dunno what these are, but they screw things up
+            pass #dunno what these are, but they screw things up #TODO
         else:
             self.current_line += char
             self.cursor_offset_in_line += 1
         #TODO deal with characters that take up more than one space
 
-    def display_linize(self, msg, columns=None):
-        if columns is None: columns = self.columns
+    def display_linize(self, msg, columns):
         display_lines = ([msg[start:end]
-                    for start, end in zip(
-                        range(0, len(msg), columns),
-                        range(columns, len(msg)+columns, columns))]
-                if msg else [''])
+                            for start, end in zip(
+                                range(0, len(msg), columns),
+                                range(columns, len(msg)+columns, columns))]
+                        if msg else [''])
         return display_lines
 
     # All paint functions should
@@ -116,7 +118,8 @@ class Repl(object):
         return numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
 
     def paint(self, rows, columns):
-        #TODO make an automatically extending 2d array
+        """Returns an array of rows or more rows and columns columns, plus cursor position"""
+
         a = AutoExtending(rows, columns)
 
         first_line_we_own = max(0, self.initial_row - self.scroll_offset)
@@ -132,18 +135,25 @@ class Repl(object):
         if current_line.shape[0] > rows:
             return a
 
+        lines = self.display_linize(self.current_line+'X', columns)
+        cursor_row = current_line_start_row + len(lines) - 1
+        cursor_column = len(lines[-1]) - 1
+
         space_above = history.shape[0]
-        space_below = rows - current_line_start_row - current_line.shape[0]
+        space_below = rows - cursor_row
         infobox = self.paint_infobox(repr(self), max(space_above, space_below), columns)
+
         if space_above >= infobox.shape[0]:
             a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
         else:
-            a[current_line_start_row+current_line.shape[0]:current_line_start_row+current_line.shape[0]+infobox.shape[0], 0:infobox.shape[1]] = infobox
-        return a
+            a[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
+
+        return a, (cursor_row, cursor_column)
 
     def run(self):
         while True:
-            print self.paint(10, 20)
+            a, cpos = self.paint(10, 20)
+            print a
             c = self.get_char()
             self.process_char(c)
 
@@ -163,11 +173,10 @@ class Repl(object):
 if __name__ == '__main__':
     r = Repl()
     r.initial_row = 0
-    r.columns = 50
-    r.rows = 20
 #TODO Don't pass around the screen size, just pass around how big to render things - so
 #     display_linize() doesn't need to be passed number of columns
+    r.display_line_width = 50
     while True:
-        scrolled = r.dumb_paint()
+        scrolled = r.dumb_paint(20, 50)
         r.scroll_offset += scrolled
         r.dumb_input()
