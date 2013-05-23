@@ -44,7 +44,7 @@ class Repl(object):
         print 'X'*(self.columns+4)
         print 'X'+(' '*(self.columns+2))+'X'
         for line in a:
-            print 'X '+(''.join([line[i] for i in range(len(line))]) if line[0] else ' '*self.columns)+' X'
+            print 'X '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*self.columns)+' X'
         print 'X'+(' '*(self.columns+2))+'X'
         print 'X'*(self.columns+4)
         return max(len(a) - self.rows, 0)
@@ -113,7 +113,7 @@ class Repl(object):
         for line in lines:
             output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|', columns))
         output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
-        return numpy.array([(list(x)+[' ']*columns)[:columns] for x in output_lines][:rows])
+        return numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
 
     def paint(self, rows, columns):
         #TODO make an automatically extending 2d array
