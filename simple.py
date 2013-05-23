@@ -87,7 +87,7 @@ class Repl(object):
                     for start, end in zip(
                         range(0, len(msg), columns),
                         range(columns, len(msg)+columns, columns))]
-                if self.current_line else [''])
+                if msg else [''])
         return display_lines
 
     # All paint functions should
@@ -123,8 +123,6 @@ class Repl(object):
         current_line_start_row = self.initial_row - self.scroll_offset + len(self.display_lines)
 
         history = self.paint_history(current_line_start_row, columns)
-        print 'current line start row', current_line_start_row
-        print 'history.shape', history.shape
         a[first_line_we_own:history.shape[0],0:history.shape[1]] = history
 
         current_line = self.paint_current_line(rows, columns)
