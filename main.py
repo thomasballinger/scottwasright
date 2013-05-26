@@ -1,5 +1,5 @@
-import simple
-import fresh
+import terminal
+import repl
 import os
 import sys
 
@@ -10,8 +10,8 @@ def safe_run(f):
         os.system('reset')
 
 def main():
-    r = simple.Repl()
-    t = fresh.Terminal(sys.stdin, sys.stdout)
+    r = repl.Repl()
+    t = terminal.Terminal(sys.stdin, sys.stdout)
     rows, columns = t.get_screen_size()
     r.display_line_width = columns
     r.initial_row, _ = t.get_screen_position()
