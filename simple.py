@@ -100,7 +100,10 @@ class Repl(object):
         lines = []
         for r, line in zip(range(rows), self.display_lines[-rows:]):
             lines.append((line+' '*1000)[:columns])
-        return numpy.array([list(s) for s in lines]) if lines else numpy.array([[]])
+        r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
+        assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
+        assert r.shape[1] <= columns
+        return r
 
     def paint_current_line(self, rows, columns):
         lines = self.display_linize(self.current_line, columns)
@@ -108,6 +111,8 @@ class Repl(object):
 
     def paint_infobox(self, msg, rows, columns):
         #TODO actually truncate infobox if necessary
+        if not (rows and columns):
+            return numpy.zeros((0,0), dtype=numpy.character)
         lines = msg.split('\n')
         width = max([len(line) for line in lines])
         output_lines = []
@@ -115,7 +120,9 @@ class Repl(object):
         for line in lines:
             output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|', columns))
         output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
-        return numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
+        r = numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
+        assert len(r.shape) == 2
+        return r
 
     def paint(self, rows, columns):
         """Returns an array of rows or more rows and columns columns, plus cursor position"""
@@ -126,7 +133,7 @@ class Repl(object):
         current_line_start_row = self.initial_row - self.scroll_offset + len(self.display_lines)
 
         history = self.paint_history(current_line_start_row, columns)
-        a[first_line_we_own:history.shape[0],0:history.shape[1]] = history
+        a[first_line_we_own:first_line_we_own+history.shape[0],0:history.shape[1]] = history
 
         current_line = self.paint_current_line(rows, columns)
         a[current_line_start_row:current_line_start_row + current_line.shape[0],
@@ -139,11 +146,12 @@ class Repl(object):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = len(lines[-1]) - 1
 
-        space_above = history.shape[0]
-        space_below = rows - cursor_row
-        infobox = self.paint_infobox(repr(self), max(space_above, space_below), columns)
+        visible_space_above = history.shape[0]
+        visible_space_below = rows - cursor_row
+        infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), columns)
 
-        if space_above >= infobox.shape[0]:
+        if visible_space_above >= infobox.shape[0]:
+            assert len(infobox.shape) == 2, repr(infobox.shape)
             a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
         else:
             a[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox

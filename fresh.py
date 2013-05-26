@@ -7,6 +7,9 @@ import sys
 import re
 import os
 
+import logging
+logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
+
 class Terminal(object):
     """
 
@@ -41,18 +44,19 @@ class Terminal(object):
 
         height, width = self.get_screen_size()
         shared = min(len(array), height)
-        f = open('log-'+__name__+'.txt', 'w')
-        print >>f, repr(array[:shared])
         for row, line in zip(range(1, height+1), array[:shared]):
-            print >>f, repr(line)
             self.set_screen_pos((row, 1))
             self.out_stream.write(''.join([line[i] for i in range(min((width+1), len(line)))]))
+        logging.debug('array: '+repr(array))
+        logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
         rest_of_rows = range(shared+1, height+1)
         for row in rest_of_rows: # if array too small
             self.set_screen_pos((row, 1))
             self.erase_line()
+        logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         for line in rest_of_lines: # if array too big
+            logging.debug('sending scroll down message')
             self.out_stream.write("D")
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
             self.out_stream.write("".join(line[:(width+1)]))
