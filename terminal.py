@@ -6,6 +6,7 @@ import tty
 import sys
 import re
 import os
+import subprocess
 
 import logging
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
@@ -23,16 +24,30 @@ class Terminal(object):
      -keystrokes to be dealt with so a new array can be returned to display
      -initial position of cursor on the screen
 
+    TODO: when less than whole screen owned, deal with that:
+        -render the top of the screen at the first clear row
+        -scroll down before rendering as necessary
+
     """
     def __init__(self, in_stream, out_stream):
+        """
+
+        in_stream must respond work with tty.setraw(in_stream), and in_stream.read(1)
+        out_stream must respond to out_stream.write('some message')
+        """
+        #TODO does this actually get the terminal settings we need, or because it's a
+        # subshell could it be completely wrong, and no better than hardcoding?
+        self.original_stty = subprocess.check_output(['stty', '-g'])
+
         tty.setraw(in_stream)
         self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
         signal.signal(signal.SIGWINCH, lambda signum, frame: self.window_change_event())
+        self.top_usable_row, _ = self.get_screen_position()
 
     def render_to_terminal(self, array, cursor_pos=(0,0)):
-        """the thing that's hard to test
+        """Renders array to terminal, returns the number of lines scrolled down
 
         If array received is of width too small, render it anyway
         if array received is of width too large, render it anyway
@@ -43,14 +58,15 @@ class Terminal(object):
         #TODO add cool render-on-change caching
 
         height, width = self.get_screen_size()
-        shared = min(len(array), height)
-        for row, line in zip(range(1, height+1), array[:shared]):
+        rows_for_use = range(self.top_usable_row, height + 1)
+        shared = min(len(array), len(rows_for_use))
+        for row, line in zip(rows_for_use[:shared], array[:shared]):
             self.set_screen_pos((row, 1))
             self.out_stream.write(''.join([line[i] for i in range(min((width+1), len(line)))]))
         logging.debug('array: '+repr(array))
         logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
-        rest_of_rows = range(shared+1, height+1)
+        rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
             self.set_screen_pos((row, 1))
             self.erase_line()
@@ -58,9 +74,10 @@ class Terminal(object):
         for line in rest_of_lines: # if array too big
             logging.debug('sending scroll down message')
             self.out_stream.write("D")
+            self.top_usable_row = max(1, self.top_usable_row - 1)
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
             self.out_stream.write("".join(line[:(width+1)]))
-        self.set_screen_pos((cursor_pos[0]+1, cursor_pos[1]+1))
+        self.set_screen_pos((cursor_pos[0]-len(rest_of_lines)+self.top_usable_row, cursor_pos[1]+1))
         return len(rest_of_lines)
 
     def window_change_event(self):
@@ -120,7 +137,20 @@ class Terminal(object):
             else:
                 a.flat[i] = c
             i += 1
+        for r in reversed(range(rows)):
+            if all(a[r] == [' ' for _ in range(columns)]):
+                a = a[:r]
         return a
+
+    def cleanup(self):
+        self.out_stream.write("D")
+        rows, _ = self.get_screen_position()
+        for i in range(1000):
+            self.erase_line()
+            self.down()
+        self.set_screen_pos((rows, 1))
+        os.system('stty '+self.original_stty)
+        self.erase_rest_of_line
 
 def test():
     t = Terminal(sys.stdin, sys.stdout)
@@ -128,21 +158,30 @@ def test():
     while True:
         c = t.get_char()
         if c == "":
+            t.cleanup()
             sys.exit()
         elif c == "h":
-            t.render_to_terminal(t.array_from_text("a for small array"))
+            a = t.array_from_text("a for small array")
         elif c == "a":
-            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows)]))
+            a = numpy.array([[c] * columns for _ in range(rows)])
         elif c == "s":
-            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows-1)]))
+            a = numpy.array([[c] * columns for _ in range(rows-1)])
         elif c == "d":
-            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows+1)]))
+            a = numpy.array([[c] * columns for _ in range(rows+1)])
         elif c == "f":
-            t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows-2)]))
+            a = numpy.array([[c] * columns for _ in range(rows-2)])
+        elif c == "q":
+            a = numpy.array([[c] * columns for _ in range(1)])
+        elif c == "w":
+            a = numpy.array([[c] * columns for _ in range(1)])
+        elif c == "e":
+            a = numpy.array([[c] * columns for _ in range(1)])
         elif c == "":
             [t.out_stream.write('\n') for _ in range(rows)]
+            return
         else:
-            t.render_to_terminal(t.array_from_text("unknown command"))
+            a = t.array_from_text("unknown command")
+        t.render_to_terminal(a)
 
 def main():
     t = Terminal(sys.stdin, sys.stdout)
@@ -155,14 +194,9 @@ def main():
     while True:
         c = t.get_char()
         if c == "":
+            t.cleanup()
             sys.exit()
         t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows)]))
-
-def safe_run(f):
-    try:
-        f()
-    finally:
-        os.system('reset')
 
 def test_array_from_text():
     t = Terminal(sys.stdin, sys.stdout)
@@ -173,5 +207,5 @@ def test_array_from_text():
     raw_input()
 
 if __name__ == '__main__':
-    #safe_run(test_array_from_text)
-    safe_run(test)
+    #test_array_from_text()
+    test()
