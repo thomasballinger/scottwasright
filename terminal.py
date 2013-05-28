@@ -1,14 +1,17 @@
 """Terminal Wrapper which renders 2d arrays of characters to terminal"""
 
-import numpy
 import signal
 import tty
 import sys
 import re
 import os
 import subprocess
-
 import logging
+
+import numpy
+
+import termformat
+
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
 
@@ -69,24 +72,29 @@ class Terminal(object):
         #TODO take a formatting array with same dimensions as array
 
         if farray is None:
-            farray = numpy.zeros((array.shape[0], array.shape[1], 3))
+            import termformatconstants
+            farray = numpy.zeros((array.shape[0], array.shape[1], 3), dtype=int)
+            farray[:, :, 0] = 32
+            farray[:, :, 1] = 44
+            farray[:, :, 2] = termformatconstants.BOLD
 
         height, width = self.get_screen_size()
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
-        for row, line in zip(rows_for_use[:shared], array[:shared]):
+        for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.set_screen_pos((row, 1))
-            self.out_stream.write(''.join([line[i] for i in range(min((width+1), len(line)))]))
+            self.out_stream.write(termformat.formatted_text(line, fline))
         logging.debug('array: '+repr(array))
         logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
+        rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
             self.set_screen_pos((row, 1))
             self.erase_line()
         logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
-        for line in rest_of_lines: # if array too big
+        for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
             self.out_stream.write("D")
             if self.top_usable_row > 1:
@@ -95,7 +103,7 @@ class Terminal(object):
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
-            self.out_stream.write("".join(line[:(width+1)]))
+            self.out_stream.write(termformat.formatted_text(line, fline))
 
         self.set_screen_pos((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls

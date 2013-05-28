@@ -1,0 +1,25 @@
+"""Constants for terminal formatting"""
+ON_GREY = 40
+ON_RED = 41
+ON_GREEN = 42
+ON_YELLOW = 43
+ON_BLUE = 44
+ON_MAGENTA = 45
+ON_CYAN = 46
+ON_WHITE = 47
+
+GREY = 30
+RED = 31
+GREEN = 32
+YELLOW = 33
+BLUE = 34
+MAGENTA = 35
+CYAN = 36
+WHITE = 37
+
+BOLD = 2**0
+DARK = 2**1
+UNDERLINE = 2**3
+BLINK = 2**4
+REVERSE = 2**6
+CONCEALED = 2**7
