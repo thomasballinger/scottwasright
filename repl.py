@@ -34,10 +34,11 @@ class Repl(object):
                                 # length goes over what the terminal width
                                 # was at the time of original output
 
-        self.initial_row = None
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
+        self.last_a_shape = (0,0)
+        self.about_to_exit = False
 
         self.display_line_width = None # the width to which to wrap the current line
 
@@ -59,6 +60,7 @@ class Repl(object):
             self.process_char(c)
 
     def process_char(self, char):
+        """Returns True if shutting down, otherwise mutates state"""
         self.last_key_pressed = char
         if char == '':
             self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
@@ -66,8 +68,8 @@ class Repl(object):
         elif char == "":
             raise KeyboardInterrupt()
         elif char == "":
-            os.system('reset')
-            sys.exit()
+            self.about_to_exit = True
+            return True
         elif char == "\n" or char == "\r": # return key, processed, or ?
             self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
@@ -127,13 +129,12 @@ class Repl(object):
     def paint(self, rows, columns):
         """Returns an array of rows or more rows and columns columns, plus cursor position"""
 
-        a = AutoExtending(rows, columns)
+        a = AutoExtending(0, columns)
 
-        first_line_we_own = max(0, self.initial_row - self.scroll_offset)
-        current_line_start_row = self.initial_row - self.scroll_offset + len(self.display_lines)
+        current_line_start_row = -self.scroll_offset + len(self.display_lines)
 
         history = self.paint_history(current_line_start_row, columns)
-        a[first_line_we_own:first_line_we_own+history.shape[0],0:history.shape[1]] = history
+        a[:history.shape[0],:history.shape[1]] = history
 
         current_line = self.paint_current_line(rows, columns)
         a[current_line_start_row:current_line_start_row + current_line.shape[0],
@@ -146,24 +147,19 @@ class Repl(object):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = len(lines[-1]) - 1
 
-        visible_space_above = history.shape[0]
-        visible_space_below = rows - cursor_row
-        infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), columns)
+        if not self.about_to_exit:
+            visible_space_above = history.shape[0]
+            visible_space_below = rows - cursor_row
+            infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), columns)
 
-        if visible_space_above >= infobox.shape[0]:
-            assert len(infobox.shape) == 2, repr(infobox.shape)
-            a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
-        else:
-            a[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
+            if visible_space_above >= infobox.shape[0]:
+                assert len(infobox.shape) == 2, repr(infobox.shape)
+                a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
+            else:
+                a[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
+        self.last_a_shape = a.shape
         return a, (cursor_row, cursor_column)
-
-    def run(self):
-        while True:
-            a, cpos = self.paint(10, 20)
-            print a
-            c = self.get_char()
-            self.process_char(c)
 
     def window_change_event(self):
         print 'window changed!'
@@ -171,6 +167,7 @@ class Repl(object):
     def __repr__(self):
         s = ''
         s += '<TerminalWrapper\n'
+        s += " size of last array rendered" + repr(self.last_a_shape) + '\n'
         s += " cursor_offset_in_line:" + repr(self.cursor_offset_in_line) + '\n'
         s += " num display lines:" + repr(len(self.display_lines)) + '\n'
         s += " last key presed:" + repr(self.last_key_pressed) + '\n'
@@ -178,9 +175,8 @@ class Repl(object):
         s += '>'
         return s
 
-if __name__ == '__main__':
+def test():
     r = Repl()
-    r.initial_row = 0
 #TODO Don't pass around the screen size, just pass around how big to render things - so
 #     display_linize() doesn't need to be passed number of columns
     r.display_line_width = 50
@@ -188,3 +184,6 @@ if __name__ == '__main__':
         scrolled = r.dumb_paint(20, 50)
         r.scroll_offset += scrolled
         r.dumb_input()
+
+if __name__ == '__main__':
+    test()

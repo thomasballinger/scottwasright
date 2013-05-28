@@ -45,9 +45,17 @@ class Terminal(object):
         self.out_stream = out_stream
         signal.signal(signal.SIGWINCH, lambda signum, frame: self.window_change_event())
         self.top_usable_row, _ = self.get_screen_position()
+        logging.debug('initial top_usable_row: %d' % self.top_usable_row)
 
-    def render_to_terminal(self, array, cursor_pos=(0,0)):
-        """Renders array to terminal, returns the number of lines scrolled down
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.cleanup()
+
+    def render_to_terminal(self, array, cursor_pos=(0,0), farray=None):
+        """Renders array to terminal, returns the number of lines
+            scrolled offscreen
 
         If array received is of width too small, render it anyway
         if array received is of width too large, render it anyway
@@ -71,14 +79,20 @@ class Terminal(object):
             self.set_screen_pos((row, 1))
             self.erase_line()
         logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
+        offscreen_scrolls = 0
         for line in rest_of_lines: # if array too big
             logging.debug('sending scroll down message')
             self.out_stream.write("D")
-            self.top_usable_row = max(1, self.top_usable_row - 1)
+            if self.top_usable_row > 1:
+                self.top_usable_row -= 1
+            else:
+                offscreen_scrolls += 1
+            logging.debug('new top_usable_row: %d' % self.top_usable_row)
             self.set_screen_pos((height, 1)) # since scrolling moves the cursor
             self.out_stream.write("".join(line[:(width+1)]))
-        self.set_screen_pos((cursor_pos[0]-len(rest_of_lines)+self.top_usable_row, cursor_pos[1]+1))
-        return len(rest_of_lines)
+
+        self.set_screen_pos((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
+        return offscreen_scrolls
 
     def window_change_event(self):
         raise Exception("Window Change Event")
@@ -178,7 +192,7 @@ def test():
             a = numpy.array([[c] * columns for _ in range(1)])
         elif c == "":
             [t.out_stream.write('\n') for _ in range(rows)]
-            return
+            continue
         else:
             a = t.array_from_text("unknown command")
         t.render_to_terminal(a)
