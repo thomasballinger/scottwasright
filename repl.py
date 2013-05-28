@@ -1,12 +1,3 @@
-"""
-
-* maybe scroll down all the way immediately? Have an option for that maybe?
-
-"""
-
-
-import sys
-import os
 import numpy
 
 from autoextend import AutoExtending
@@ -25,7 +16,6 @@ class Repl(object):
     Geometry information gets passed around, while REPL information is state
       on the object
 """
-#TODO fix inconsistencies with self.columns versus columns - explicit or implicit state
 
     def __init__(self):
         self.current_line = ''
@@ -128,10 +118,8 @@ class Repl(object):
 
     def paint(self, rows, columns):
         """Returns an array of rows or more rows and columns columns, plus cursor position"""
-
         a = AutoExtending(0, columns)
-
-        current_line_start_row = -self.scroll_offset + len(self.display_lines)
+        current_line_start_row = len(self.display_lines) - self.scroll_offset
 
         history = self.paint_history(current_line_start_row, columns)
         a[:history.shape[0],:history.shape[1]] = history
@@ -141,13 +129,13 @@ class Repl(object):
             0:current_line.shape[1]] = current_line
 
         if current_line.shape[0] > rows:
-            return a
+            return a # short circuit, no room for infobox
 
         lines = self.display_linize(self.current_line+'X', columns)
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = len(lines[-1]) - 1
 
-        if not self.about_to_exit:
+        if not self.about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = rows - cursor_row
             infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), columns)
