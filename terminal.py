@@ -11,6 +11,8 @@ import subprocess
 import logging
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
+
+
 class Terminal(object):
     """
 
@@ -64,6 +66,10 @@ class Terminal(object):
             and render the rest of it, then return how much we scrolled down
         """
         #TODO add cool render-on-change caching
+        #TODO take a formatting array with same dimensions as array
+
+        if farray is None:
+            farray = numpy.zeros((array.shape[0], array.shape[1], 3))
 
         height, width = self.get_screen_size()
         rows_for_use = range(self.top_usable_row, height + 1)
