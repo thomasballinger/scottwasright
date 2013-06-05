@@ -1,10 +1,10 @@
-import terminal
-import repl
+from scottsright.terminal import Terminal
+from scottsright.repl import Repl
 import sys
 
 def main():
-    r = repl.Repl()
-    with terminal.Terminal(sys.stdin, sys.stdout) as t:
+    r = Repl()
+    with Terminal(sys.stdin, sys.stdout) as t:
         rows, columns = t.get_screen_size()
         r.display_line_width = columns
         while True:
