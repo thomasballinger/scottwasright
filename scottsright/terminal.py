@@ -74,8 +74,8 @@ class Terminal(object):
         if farray is None:
             import termformatconstants
             farray = numpy.zeros((array.shape[0], array.shape[1], 3), dtype=int)
-            farray[:, :, 0] = 32
-            farray[:, :, 1] = 44
+            farray[:, :, 0] = termformatconstants.RED
+            farray[:, :, 1] = termformatconstants.ON_WHITE
             farray[:, :, 2] = termformatconstants.BOLD
 
         height, width = self.get_screen_size()
