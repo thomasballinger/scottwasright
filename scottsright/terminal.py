@@ -11,6 +11,7 @@ import logging
 import numpy
 
 import termformat
+import termformatconstants
 
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
@@ -72,7 +73,6 @@ class Terminal(object):
         #TODO take a formatting array with same dimensions as array
 
         if farray is None:
-            import termformatconstants
             farray = numpy.zeros((array.shape[0], array.shape[1], 3), dtype=int)
             farray[:, :, 0] = termformatconstants.RED
             farray[:, :, 1] = termformatconstants.ON_WHITE
