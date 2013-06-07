@@ -119,11 +119,17 @@ class Terminal(object):
             return self.in_stream.read(1)
 
     QUERY_CURSOR_POSITION = "\x1b[6n"
-    def move_cursor_direction(char):
+    def produce_cursor_sequence(char):
+        """
+        Returns a method that issues a cursor control sequence.
+        see: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes
+
+        e.g. A, B, C, D correspond to cursor up, down, forward, and backward
+        """
         def func(self, n=1):
             if n: self.out_stream.write("[%d%s" % (n, char))
         return func
-    up, down, fwd, back = [move_cursor_direction(char) for char in 'ABCD']
+    up, down, fwd, back = [produce_cursor_sequence(char) for char in 'ABCD']
     def erase_rest_of_line(self): self.out_stream.write("[K")
     def erase_line(self): self.out_stream.write("[2K")
 
