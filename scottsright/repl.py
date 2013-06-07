@@ -15,6 +15,9 @@ class Repl(object):
 
     Geometry information gets passed around, while REPL information is state
       on the object
+
+    TODO change all "rows" to "height" iff rows is a number
+    (not if it's an array of the rows)
 """
 
     def __init__(self):
@@ -32,7 +35,7 @@ class Repl(object):
 
         self.display_line_width = None # the width to which to wrap the current line
 
-    def dumb_paint(self, rows, columns):
+    def dumb_print_output(self, rows, columns):
         a, cpos = self.paint(rows, columns)
         a[cpos[0], cpos[1]] = '~'
         print 'X'*(columns+8)
@@ -116,29 +119,29 @@ class Repl(object):
         assert len(r.shape) == 2
         return r
 
-    def paint(self, rows, columns):
-        """Returns an array of rows or more rows and columns columns, plus cursor position"""
-        a = AutoExtending(0, columns)
+    def paint(self, min_height, width):
+        """Returns an array of min_height or more rows and width columns, plus cursor position"""
+        a = AutoExtending(0, width)
         current_line_start_row = len(self.display_lines) - self.scroll_offset
 
-        history = self.paint_history(current_line_start_row, columns)
+        history = self.paint_history(current_line_start_row, width)
         a[:history.shape[0],:history.shape[1]] = history
 
-        current_line = self.paint_current_line(rows, columns)
+        current_line = self.paint_current_line(min_height, width)
         a[current_line_start_row:current_line_start_row + current_line.shape[0],
             0:current_line.shape[1]] = current_line
 
-        if current_line.shape[0] > rows:
+        if current_line.shape[0] > min_height:
             return a # short circuit, no room for infobox
 
-        lines = self.display_linize(self.current_line+'X', columns)
+        lines = self.display_linize(self.current_line+'X', width)
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = len(lines[-1]) - 1
 
         if not self.about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
-            visible_space_below = rows - cursor_row
-            infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), columns)
+            visible_space_below = min_height - cursor_row
+            infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), width)
 
             if visible_space_above >= infobox.shape[0]:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
@@ -169,7 +172,7 @@ def test():
 #     display_linize() doesn't need to be passed number of columns
     r.display_line_width = 50
     while True:
-        scrolled = r.dumb_paint(20, 50)
+        scrolled = r.dumb_print_output(20, 50)
         r.scroll_offset += scrolled
         r.dumb_input()
 
