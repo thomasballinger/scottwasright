@@ -82,7 +82,7 @@ class Terminal(object):
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
-            self.set_screen_pos((row, 1))
+            self.set_screen_position((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
         logging.debug('array: '+repr(array))
         logging.debug('shared: '+repr(shared))
@@ -90,7 +90,7 @@ class Terminal(object):
         rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
-            self.set_screen_pos((row, 1))
+            self.set_screen_position((row, 1))
             self.erase_line()
         logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
@@ -102,10 +102,10 @@ class Terminal(object):
             else:
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
-            self.set_screen_pos((height, 1)) # since scrolling moves the cursor
+            self.set_screen_position((height, 1)) # since scrolling moves the cursor
             self.out_stream.write(termformat.formatted_text(line, fline))
 
-        self.set_screen_pos((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
+        self.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
     def window_change_event(self):
@@ -141,16 +141,16 @@ class Terminal(object):
                 self.in_buffer.extend(list(m.groupdict()['extra']))
                 return (row, col)
 
-    def set_screen_pos(self, (row, col)):
+    def set_screen_position(self, (row, col)):
         self.out_stream.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
         #TODO generalize get_screen_position code and use it here instead
         orig = self.get_screen_position()
-        self.fwd(10000)
+        self.fwd(10000) # 10000 is much larger than any reasonable terminal
         self.down(10000)
         size = self.get_screen_position()
-        self.set_screen_pos(orig)
+        self.set_screen_position(orig)
         return size
 
     def array_from_text(self, msg):
@@ -176,7 +176,7 @@ class Terminal(object):
         for i in range(1000):
             self.erase_line()
             self.down()
-        self.set_screen_pos((rows, 1))
+        self.set_screen_position((rows, 1))
         os.system('stty '+self.original_stty)
         self.erase_rest_of_line
 
