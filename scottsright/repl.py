@@ -1,4 +1,6 @@
 import numpy
+import sys
+from cStringIO import StringIO
 
 from autoextend import AutoExtending
 
@@ -35,15 +37,36 @@ class Repl(object):
 
         self.display_line_width = None # the width to which to wrap the current line
 
+        self.orig_stdin = sys.stdin
+        self.orig_stdout = sys.stdout
+        #self.orig_stderr = sys.stderr
+
+        #TODO mock out stdin as necessary
+        sys.stdout = StringIO()
+        sys.stderr = StringIO()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.cleanup()
+
+    def cleanup(self):
+        sys.stdin = self.orig_stdin
+        sys.stdout = self.orig_stdout
+        sys.stderr = self.orig_stderr
+
     def dumb_print_output(self, rows, columns):
         a, cpos = self.paint(rows, columns)
         a[cpos[0], cpos[1]] = '~'
-        print 'X'*(columns+8)
-        print 'X  '+(' '*(columns+2))+'  X'
+        def my_print(*messages):
+            self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
+        my_print('X'*(columns+8)+'\n')
+        my_print('X  '+(' '*(columns+2))+'  X')
         for line in a:
-            print 'X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'   X'
-        print 'X  '+(' '*(columns+2))+'  X'
-        print 'X'*(columns+8)
+            my_print('X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'   X')
+        my_print('X  '+(' '*(columns+2))+'  X')
+        my_print('X'*(columns+8))
         return max(len(a) - rows, 0)
 
     def dumb_input(self):
@@ -67,6 +90,11 @@ class Repl(object):
             self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
             self.display_lines.extend(self.display_linize(self.current_line, self.display_line_width))
+            output, err, done = self.push(self.current_line)
+            if output and done:
+                self.display_lines.extend(self.display_linize(output, self.display_line_width))
+            if err:
+                self.display_lines.extend(self.display_linize(err, self.display_line_width))
             self.current_line = ''
         elif char == "":
             self.scroll_up()
@@ -78,6 +106,9 @@ class Repl(object):
             self.current_line += char
             self.cursor_offset_in_line += 1
         #TODO deal with characters that take up more than one space
+
+    def push(self, msg):
+        return (repr(eval(msg)), None, True)
 
     def display_linize(self, msg, columns):
         display_lines = ([msg[start:end]
