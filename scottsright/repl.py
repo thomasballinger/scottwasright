@@ -1,5 +1,6 @@
 import numpy
 import sys
+import traceback
 from cStringIO import StringIO
 
 from autoextend import AutoExtending
@@ -39,7 +40,7 @@ class Repl(object):
 
         self.orig_stdin = sys.stdin
         self.orig_stdout = sys.stdout
-        #self.orig_stderr = sys.stderr
+        self.orig_stderr = sys.stderr
 
         #TODO mock out stdin as necessary
         sys.stdout = StringIO()
@@ -48,13 +49,16 @@ class Repl(object):
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, *args):
         self.cleanup()
 
     def cleanup(self):
+        sys.stderr.seek(0)
+        errors = sys.stderr.read()
         sys.stdin = self.orig_stdin
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
+        sys.stderr.write(errors)
 
     def dumb_print_output(self, rows, columns):
         a, cpos = self.paint(rows, columns)
@@ -94,7 +98,7 @@ class Repl(object):
             if output and done:
                 self.display_lines.extend(self.display_linize(output, self.display_line_width))
             if err:
-                self.display_lines.extend(self.display_linize(err, self.display_line_width))
+                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
             self.current_line = ''
         elif char == "":
             self.scroll_up()
@@ -108,7 +112,12 @@ class Repl(object):
         #TODO deal with characters that take up more than one space
 
     def push(self, msg):
-        return (repr(eval(msg)), None, True)
+        try:
+            out = repr(eval(msg))
+            return (out, None, True)
+        except:
+            err = traceback.format_exc()
+            return (None, err, True)
 
     def display_linize(self, msg, columns):
         display_lines = ([msg[start:end]
@@ -124,6 +133,7 @@ class Repl(object):
 
     def paint_history(self, rows, columns):
         lines = []
+        sys.stderr.write(repr(self.display_lines))
         for r, line in zip(range(rows), self.display_lines[-rows:]):
             lines.append((line+' '*1000)[:columns])
         r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
@@ -174,7 +184,8 @@ class Repl(object):
             visible_space_below = min_height - cursor_row
             infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), width)
 
-            if visible_space_above >= infobox.shape[0]:
+            #if visible_space_above >= infobox.shape[0]:
+            if False: # never paint over text
                 assert len(infobox.shape) == 2, repr(infobox.shape)
                 a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
             else:
@@ -198,14 +209,12 @@ class Repl(object):
         return s
 
 def test():
-    r = Repl()
-#TODO Don't pass around the screen size, just pass around how big to render things - so
-#     display_linize() doesn't need to be passed number of columns
-    r.display_line_width = 50
-    while True:
-        scrolled = r.dumb_print_output(20, 50)
-        r.scroll_offset += scrolled
-        r.dumb_input()
+    with Repl() as r:
+        r.display_line_width = 50
+        while True:
+            scrolled = r.dumb_print_output(20, 50)
+            r.scroll_offset += scrolled
+            r.dumb_input()
 
 if __name__ == '__main__':
     test()
