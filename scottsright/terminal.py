@@ -15,7 +15,6 @@ import termformat
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
 
-
 class Terminal(object):
     """
 
@@ -129,7 +128,7 @@ class Terminal(object):
 
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
-        sys.stdout.write(Terminal.QUERY_CURSOR_POSITION)
+        self.out_stream.write(Terminal.QUERY_CURSOR_POSITION)
         resp = ''
         while True:
             c = self.in_stream.read(1)

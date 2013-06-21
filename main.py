@@ -1,13 +1,10 @@
 from scottsright.terminal import Terminal
 from scottsright.repl import Repl
 import sys
-raw_input()
 
 def main():
-    with Repl() as r:
-        print 'asdf'
-        with Terminal(sys.stdin, sys.stdout) as t:
-            print 'asdf'
+    with Terminal(sys.stdin, sys.stdout) as t:
+        with Repl() as r:
             rows, columns = t.get_screen_size()
             r.display_line_width = columns
             while True:
