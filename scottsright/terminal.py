@@ -181,35 +181,34 @@ class Terminal(object):
         self.erase_rest_of_line
 
 def test():
-    t = Terminal(sys.stdin, sys.stdout)
-    rows, columns = t.get_screen_size()
-    while True:
-        c = t.get_char()
-        if c == "":
-            t.cleanup()
-            sys.exit()
-        elif c == "h":
-            a = t.array_from_text("a for small array")
-        elif c == "a":
-            a = numpy.array([[c] * columns for _ in range(rows)])
-        elif c == "s":
-            a = numpy.array([[c] * columns for _ in range(rows-1)])
-        elif c == "d":
-            a = numpy.array([[c] * columns for _ in range(rows+1)])
-        elif c == "f":
-            a = numpy.array([[c] * columns for _ in range(rows-2)])
-        elif c == "q":
-            a = numpy.array([[c] * columns for _ in range(1)])
-        elif c == "w":
-            a = numpy.array([[c] * columns for _ in range(1)])
-        elif c == "e":
-            a = numpy.array([[c] * columns for _ in range(1)])
-        elif c == "":
-            [t.out_stream.write('\n') for _ in range(rows)]
-            continue
-        else:
-            a = t.array_from_text("unknown command")
-        t.render_to_terminal(a)
+    with Terminal(sys.stdin, sys.stdout) as t:
+        rows, columns = t.get_screen_size()
+        while True:
+            c = t.get_char()
+            if c == "":
+                sys.exit() # same as raise SystemExit()
+            elif c == "h":
+                a = t.array_from_text("a for small array")
+            elif c == "a":
+                a = numpy.array([[c] * columns for _ in range(rows)])
+            elif c == "s":
+                a = numpy.array([[c] * columns for _ in range(rows-1)])
+            elif c == "d":
+                a = numpy.array([[c] * columns for _ in range(rows+1)])
+            elif c == "f":
+                a = numpy.array([[c] * columns for _ in range(rows-2)])
+            elif c == "q":
+                a = numpy.array([[c] * columns for _ in range(1)])
+            elif c == "w":
+                a = numpy.array([[c] * columns for _ in range(1)])
+            elif c == "e":
+                a = numpy.array([[c] * columns for _ in range(1)])
+            elif c == "":
+                [t.out_stream.write('\n') for _ in range(rows)]
+                continue
+            else:
+                a = t.array_from_text("unknown command")
+            t.render_to_terminal(a)
 
 def main():
     t = Terminal(sys.stdin, sys.stdout)
