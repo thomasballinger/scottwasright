@@ -98,7 +98,7 @@ class Repl(object):
             if output and done:
                 self.display_lines.extend(self.display_linize(output, self.display_line_width))
             if err:
-                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
+                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
             self.current_line = ''
         elif char == "":
             self.scroll_up()
