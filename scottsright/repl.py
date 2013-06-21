@@ -133,7 +133,6 @@ class Repl(object):
 
     def paint_history(self, rows, columns):
         lines = []
-        sys.stderr.write(repr(self.display_lines))
         for r, line in zip(range(rows), self.display_lines[-rows:]):
             lines.append((line+' '*1000)[:columns])
         r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
