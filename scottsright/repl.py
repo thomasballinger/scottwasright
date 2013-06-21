@@ -35,7 +35,6 @@ class Repl(object):
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
         self.last_a_shape = (0,0)
-        self.about_to_exit = False
 
         self.display_line_width = None # the width to which to wrap the current line
 
@@ -88,7 +87,6 @@ class Repl(object):
         elif char == "":
             raise KeyboardInterrupt()
         elif char == "":
-            self.about_to_exit = True
             return True
         elif char == "\n" or char == "\r": # return key, processed, or ?
             self.cursor_offset_in_line = 0
@@ -161,7 +159,7 @@ class Repl(object):
         assert len(r.shape) == 2
         return r
 
-    def paint(self, min_height, width):
+    def paint(self, min_height, width, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
         a = AutoExtending(0, width)
         current_line_start_row = len(self.display_lines) - self.scroll_offset
@@ -180,7 +178,7 @@ class Repl(object):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = self.cursor_offset_in_line
 
-        if not self.about_to_exit: # since we don't want the infobox then
+        if not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
             infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), width)
