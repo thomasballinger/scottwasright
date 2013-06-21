@@ -100,7 +100,7 @@ class Repl(object):
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
             self.current_line = ''
-        elif char == "OD": # left arrow
+        elif char == "[D": # left arrow
             self.cursor_offset_in_line = max(0, self.cursor_offset_in_line-1)
         elif char == "":
             self.scroll_up()
@@ -180,7 +180,7 @@ class Repl(object):
 
         lines = self.display_linize(self.current_line+'X', width)
         cursor_row = current_line_start_row + len(lines) - 1
-        cursor_column = len(lines[-1]) - 1
+        cursor_column = self.cursor_offset_in_line
 
         if not self.about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
