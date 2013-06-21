@@ -85,9 +85,6 @@ class Repl(object):
         self.last_key_pressed = char
         if char in rl_char_sequences:
             self.cursor_offset_in_line, self.current_line = rl_char_sequences[char](self.cursor_offset_in_line, self.current_line)
-        elif char == '':
-            self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-            self.current_line = self.current_line[:-1]
         elif char == "":
             raise KeyboardInterrupt()
         elif char == "":
@@ -103,8 +100,6 @@ class Repl(object):
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
             self.current_line = ''
-        elif char == "[D": # left arrow
-            self.cursor_offset_in_line = max(0, self.cursor_offset_in_line-1)
         elif char == "":
             self.scroll_up()
         elif char == "":
