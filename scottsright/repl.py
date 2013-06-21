@@ -80,7 +80,7 @@ class Repl(object):
             self.process_char(c)
 
     def process_char(self, char):
-        """Returns True if shutting down, otherwise mutates state"""
+        """Returns True if shutting down, otherwise mutates state of Repl object"""
         self.last_key_pressed = char
         if char in rl_char_sequences:
             self.cursor_offset_in_line, self.current_line = rl_char_sequences[char](self.cursor_offset_in_line, self.current_line)
@@ -98,20 +98,17 @@ class Repl(object):
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
             self.current_line = ''
-        elif char == "":
-            self.scroll_up()
-        elif char == "":
-            self.scroll_down()
         elif char == "" or char == "":
-            pass #dunno what these are, but they screw things up #TODO
+            pass #dunno what these are, but they screw things up #TODO find out
         else:
             self.current_line = (self.current_line[:self.cursor_offset_in_line] +
                                  char +
                                  self.current_line[self.cursor_offset_in_line:])
             self.cursor_offset_in_line += 1
-        #TODO deal with characters that take up more than one space
+        #TODO deal with characters that take up more than one space? do we care?
 
     def push(self, msg):
+        """Returns output, error output, and whether command is complete"""
         try:
             out = repr(eval(msg))
             return (out, None, True)
