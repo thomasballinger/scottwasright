@@ -4,6 +4,7 @@ import traceback
 from cStringIO import StringIO
 
 from autoextend import AutoExtending
+from manual_readline import char_sequences as rl_char_sequences
 
 class Repl(object):
     """
@@ -82,7 +83,9 @@ class Repl(object):
     def process_char(self, char):
         """Returns True if shutting down, otherwise mutates state"""
         self.last_key_pressed = char
-        if char == '':
+        if char in rl_char_sequences:
+            self.cursor_offset_in_line, self.current_line = rl_char_sequences[char](self.cursor_offset_in_line, self.current_line)
+        elif char == '':
             self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
             self.current_line = self.current_line[:-1]
         elif char == "":
