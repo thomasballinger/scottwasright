@@ -100,6 +100,8 @@ class Repl(object):
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
             self.current_line = ''
+        elif char == "OD": # left arrow
+            self.cursor_offset_in_line = max(0, self.cursor_offset_in_line-1)
         elif char == "":
             self.scroll_up()
         elif char == "":
@@ -107,7 +109,9 @@ class Repl(object):
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO
         else:
-            self.current_line += char
+            self.current_line = (self.current_line[:self.cursor_offset_in_line] +
+                                 char +
+                                 self.current_line[self.cursor_offset_in_line:])
             self.cursor_offset_in_line += 1
         #TODO deal with characters that take up more than one space
 

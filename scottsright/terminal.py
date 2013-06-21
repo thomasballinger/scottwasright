@@ -83,8 +83,8 @@ class Terminal(object):
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.set_screen_pos((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
-        logging.debug('array: '+repr(array))
-        logging.debug('shared: '+repr(shared))
+        #logging.debug('array: '+repr(array))
+        #logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
         rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
@@ -112,10 +112,22 @@ class Terminal(object):
         #TODO this should be in the same input stream, so we need concurrency?
 
     def get_char(self):
-        if self.in_buffer:
-            return self.in_buffer.pop(0)
-        else:
-            return self.in_stream.read(1)
+        def get_next_partial_char():
+            if self.in_buffer:
+                c = self.in_buffer.pop(0)
+            else:
+                c = self.in_stream.read(1)
+            return c
+        c = get_next_partial_char()
+        if c == '\x1b':
+            while True:
+                c += get_next_partial_char()
+                if len(c) == 2 and c[1] != '[':
+                    break
+                if len(c) > 2 and c[1] == '[' and c[-1] not in tuple('1234567890;'):
+                    break
+        logging.debug('get_char: %r', c)
+        return c
 
     QUERY_CURSOR_POSITION = "\x1b[6n"
     def move_cursor_direction(char):
