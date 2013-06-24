@@ -35,6 +35,7 @@ class Repl(object):
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
         self.last_a_shape = (0,0)
+        self.done = True
 
         self.display_line_width = None # the width to which to wrap the current line
 
@@ -79,6 +80,10 @@ class Repl(object):
                 c = '\n'
             self.process_char(c)
 
+    @property
+    def current_display_line(self):
+        return (">>> " if self.done else "... ") + self.current_line
+
     def process_char(self, char):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
         self.last_key_pressed = char
@@ -91,9 +96,9 @@ class Repl(object):
         elif char == "\n" or char == "\r": # return key, processed, or ?
             self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
-            self.display_lines.extend(self.display_linize(self.current_line, self.display_line_width))
-            output, err, done = self.push(self.current_line)
-            if output and done:
+            self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
+            output, err, self.done = self.push(self.current_line)
+            if output:
                 self.display_lines.extend(self.display_linize(output, self.display_line_width))
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
@@ -138,7 +143,7 @@ class Repl(object):
         return r
 
     def paint_current_line(self, rows, columns):
-        lines = self.display_linize(self.current_line, columns)
+        lines = self.display_linize(self.current_display_line, columns)
         return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
 
     def paint_infobox(self, msg, rows, columns):
@@ -171,9 +176,9 @@ class Repl(object):
         if current_line.shape[0] > min_height:
             return a # short circuit, no room for infobox
 
-        lines = self.display_linize(self.current_line+'X', width)
+        lines = self.display_linize(self.current_display_line+'X', width)
         cursor_row = current_line_start_row + len(lines) - 1
-        cursor_column = self.cursor_offset_in_line
+        cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
 
         if not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]

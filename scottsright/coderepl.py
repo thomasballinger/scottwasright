@@ -24,7 +24,7 @@ class CodeRepl(scottsright.repl.Repl):
         err_spot = sys.stderr.tell()
         logging.debug('err_spot : %s', err_spot)
         logging.debug('out_spot : %s', out_spot)
-        unfinished = self.interp.runsource(line)
+        unfinished = self.interp.runsource('\n'.join(self.buffer))
         logging.debug('locals after run: %s', self.interp.locals.keys())
         logging.debug('return value : %s', unfinished)
         sys.stdout.seek(out_spot)
@@ -35,8 +35,11 @@ class CodeRepl(scottsright.repl.Repl):
         logging.debug('err : %s', err)
         self.orig_stderr.seek(0)
         if unfinished and not err:
+            logging.debug('unfinished - line added to buffer')
             return (None, None, False)
         else:
+            logging.debug('finished - buffer cleared')
+            self.buffer = []
             return (out, err, True)
 
 def test():
