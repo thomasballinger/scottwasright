@@ -99,9 +99,9 @@ class Repl(object):
             self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
             output, err, self.done = self.push(self.current_line)
             if output:
-                self.display_lines.extend(self.display_linize(output, self.display_line_width))
+                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in output.split('\n')], []))
             if err:
-                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n') if line.split()], []))
+                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
             self.current_line = ''
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
