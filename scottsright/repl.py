@@ -67,10 +67,10 @@ class Repl(object):
         def my_print(*messages):
             self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
         my_print('X'*(columns+8))
-        my_print('X  '+(' '*(columns+2))+'  X')
+        my_print('X..'+('.'*(columns+2))+'..X')
         for line in a:
-            my_print('X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'   X')
-        my_print('X  '+(' '*(columns+2))+'  X')
+            my_print('X...'+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'...X')
+        my_print('X..'+('.'*(columns+2))+'..X')
         my_print('X'*(columns+8))
         return max(len(a) - rows, 0)
 
