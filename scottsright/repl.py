@@ -66,7 +66,7 @@ class Repl(object):
         a[cpos[0], cpos[1]] = '~'
         def my_print(*messages):
             self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
-        my_print('X'*(columns+8)+'\n')
+        my_print('X'*(columns+8))
         my_print('X  '+(' '*(columns+2))+'  X')
         for line in a:
             my_print('X   '+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'   X')
