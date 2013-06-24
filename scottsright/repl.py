@@ -93,7 +93,7 @@ class Repl(object):
             raise KeyboardInterrupt()
         elif char == "":
             return True
-        elif char == "\n" or char == "\r": # return key, processed, or ?
+        elif char in ("\n", "\r"):
             self.cursor_offset_in_line = 0
             self.logical_lines.append(self.current_line)
             self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
