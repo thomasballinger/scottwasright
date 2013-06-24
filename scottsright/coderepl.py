@@ -40,7 +40,7 @@ class CodeRepl(scottsright.repl.Repl):
         else:
             logging.debug('finished - buffer cleared')
             self.buffer = []
-            return (out, err, True)
+            return (out[:-1], err[:-1], True)
 
 def test():
     with CodeRepl() as r:
