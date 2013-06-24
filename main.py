@@ -1,5 +1,5 @@
 from scottsright.terminal import Terminal
-from scottsright.repl import Repl
+from scottsright.coderepl import CodeRepl as Repl
 import sys
 
 def main():

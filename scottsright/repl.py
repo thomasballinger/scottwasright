@@ -43,7 +43,6 @@ class Repl(object):
         self.orig_stdout = sys.stdout
         self.orig_stderr = sys.stderr
 
-        #TODO mock out stdin as necessary
         sys.stdout = StringIO()
         sys.stderr = StringIO()
 
@@ -54,12 +53,8 @@ class Repl(object):
         self.cleanup()
 
     def cleanup(self):
-        sys.stderr.seek(0)
-        errors = sys.stderr.read()
-        sys.stdin = self.orig_stdin
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
-        sys.stderr.write(errors)
 
     def dumb_print_output(self, rows, columns):
         a, cpos = self.paint(rows, columns)
