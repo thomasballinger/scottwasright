@@ -1,5 +1,7 @@
-"""implementations of readline control sequences
+"""implementations of simple readline control sequences
 
+just the ones that fit the model of transforming the current line
+and the cursor location
 in the order of description at http://www.bigsmoke.us/readline/shortcuts"""
 
 class NotImplementedError(NotImplementedError):

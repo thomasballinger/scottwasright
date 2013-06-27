@@ -5,6 +5,7 @@ from cStringIO import StringIO
 
 from autoextend import AutoExtending
 from manual_readline import char_sequences as rl_char_sequences
+from history import History
 
 class Repl(object):
     """
@@ -26,10 +27,10 @@ class Repl(object):
 
     def __init__(self):
         self.current_line = ''
-        self.logical_lines = []
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
+        self.history = History()
 
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
@@ -84,13 +85,15 @@ class Repl(object):
         self.last_key_pressed = char
         if char in rl_char_sequences:
             self.cursor_offset_in_line, self.current_line = rl_char_sequences[char](self.cursor_offset_in_line, self.current_line)
+        elif char in self.history.char_sequences:
+            self.cursor_offset_in_line, self.current_line = self.history.char_sequences[char](self.cursor_offset_in_line, self.current_line)
         elif char == "":
             raise KeyboardInterrupt()
         elif char == "":
             return True
         elif char in ("\n", "\r"):
             self.cursor_offset_in_line = 0
-            self.logical_lines.append(self.current_line)
+            self.history.on_enter(self.current_line)
             self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
             output, err, self.done = self.push(self.current_line)
             if output:
