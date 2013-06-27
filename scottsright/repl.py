@@ -98,12 +98,13 @@ class Repl(object):
             self.cursor_offset_in_line = 0
             self.history.on_enter(self.current_line)
             self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
-            output, err, self.done = self.push(self.current_line)
+            output, err, self.done, indent = self.push(self.current_line)
             if output:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in output.split('\n')], []))
             if err:
                 self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
-            self.current_line = ''
+            self.current_line = ' '*indent
+            self.cursor_offset_in_line = len(self.current_line)
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif char == '\t':
@@ -124,10 +125,10 @@ class Repl(object):
         """Returns output, error output, and whether command is complete"""
         try:
             out = repr(eval(msg))
-            return (out, None, True)
+            return (out, None, True, 0)
         except:
             err = traceback.format_exc()
-            return (None, err, True)
+            return (None, err, True, 0)
 
     def display_linize(self, msg, columns):
         display_lines = ([msg[start:end]
