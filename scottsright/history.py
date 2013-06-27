@@ -15,6 +15,8 @@ def on(seq):
         return func
     return add_to_seq_handler
 
+line_with_cursor_at_end = lambda line: (len(line), line)
+
 class History(object):
     def __init__(self):
         self.logical_lines = []
@@ -30,7 +32,7 @@ class History(object):
     @on('[A')
     def prev_line_in_history(self, cursor_offset, current_line):
         if cursor_offset != len(current_line):
-            return len(current_line), current_line
+            return line_with_cursor_at_end(current_line)
         else:
             if self.history_index == 0:
                 self.filter_line = current_line
@@ -45,8 +47,12 @@ class History(object):
         else:
             self.history_index -= 1
             if self.history_index == 0:
-                return len(self.filter_line), self.filter_line
+                return line_with_cursor_at_end(self.filter_line)
             return self.use_history_index()
+
+    @on('.')
+    def back_to_current_line_in_history(self, cursor_offset, current_line):
+        raise NotImplementedError()
 
     def on_enter(self, line):
         self.history_index = 0
