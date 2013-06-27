@@ -6,6 +6,9 @@ from cStringIO import StringIO
 from autoextend import AutoExtending
 from manual_readline import char_sequences as rl_char_sequences
 from history import History
+from abbreviate import substitute_abbreviations
+
+TAB_WIDTH = 4
 
 class Repl(object):
     """
@@ -103,11 +106,18 @@ class Repl(object):
             self.current_line = ''
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
+        elif char == '\t':
+            for _ in range(TAB_WIDTH):
+                self.add_normal_character(' ')
         else:
-            self.current_line = (self.current_line[:self.cursor_offset_in_line] +
-                                 char +
-                                 self.current_line[self.cursor_offset_in_line:])
-            self.cursor_offset_in_line += 1
+            self.add_normal_character(char)
+
+    def add_normal_character(self, char):
+        self.current_line = (self.current_line[:self.cursor_offset_in_line] +
+                             char +
+                             self.current_line[self.cursor_offset_in_line:])
+        self.cursor_offset_in_line += 1
+        self.cursor_offset_in_line, self.current_line = substitute_abbreviations(self.cursor_offset_in_line, self.current_line)
         #TODO deal with characters that take up more than one space? do we care?
 
     def push(self, msg):
