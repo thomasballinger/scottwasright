@@ -83,6 +83,7 @@ class Terminal(object):
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.set_screen_position((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
+            self.erase_rest_of_line()
         #logging.debug('array: '+repr(array))
         #logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
@@ -195,7 +196,7 @@ class Terminal(object):
             self.down()
         self.set_screen_position((rows, 1))
         os.system('stty '+self.original_stty)
-        self.erase_rest_of_line
+        self.erase_rest_of_line()
 
 def test():
     with Terminal(sys.stdin, sys.stdout) as t:
