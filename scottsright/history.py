@@ -21,12 +21,14 @@ class History(object):
     def __init__(self):
         self.logical_lines = []
         self.history_index = 0
-        self.char_sequences = {seq: getattr(self, handler)
-            for seq, handler in CHAR_SEQUENCES.items()}
+        self.filter_line = ''
+        self.char_sequences = {seq: getattr(self, handler) 
+                               for seq, handler in CHAR_SEQUENCES.items()}
 
     def use_history_index(self):
         current_line = self.logical_lines[-self.history_index]
-        return len(current_line), current_line
+        return line_with_cursor_at_end(current_line)
+
 
     @on('')
     @on('[A')
@@ -38,7 +40,7 @@ class History(object):
                 self.filter_line = current_line
             if len(self.logical_lines) == 0:
                 return cursor_offset, current_line
-            self.history_index = (self.history_index) % len(self.logical_lines) + 1
+            self.history_index = (self.history_index % len(self.logical_lines)) + 1
             return self.use_history_index()
 
     @on('')
