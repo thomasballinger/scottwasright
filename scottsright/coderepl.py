@@ -14,10 +14,9 @@ class CodeRepl(scottsright.repl.Repl):
         super(CodeRepl, self).__init__()
         self.interp = code.InteractiveInterpreter()
         self.buffer = []
-        self.indent_levels = [0]
 
     def __repr__(self):
-        return str(self.indent_levels) + '\n' + repr(self.current_line)
+        return str(self.indent_levels) + '\n' + repr(self.current_line) + '\n' + str(self.cursor_offset_in_line)
 
     def push(self, line):
         """Run a line of code.
@@ -27,8 +26,11 @@ class CodeRepl(scottsright.repl.Repl):
         self.buffer.append(line)
         indent = len(re.match(r'[ ]*', line).group())
         self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
+
         if line.endswith(':'):
             self.indent_levels.append(indent + INDENT_AMOUNT)
+        elif line and line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+            self.indent_levels.pop()
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
         unfinished = self.interp.runsource('\n'.join(self.buffer))
@@ -42,6 +44,8 @@ class CodeRepl(scottsright.repl.Repl):
         else:
             logging.debug('finished - buffer cleared')
             self.buffer = []
+            if err:
+                self.indent_levels = [0]
             return (out[:-1], err[:-1], True, self.indent_levels[-1])
 
 def test():

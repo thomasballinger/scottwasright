@@ -41,6 +41,8 @@ class Repl(object):
         self.last_a_shape = (0,0)
         self.done = True
 
+        self.indent_levels = [0]
+
         self.display_line_width = None # the width to which to wrap the current line
 
         self.orig_stdin = sys.stdin
@@ -94,6 +96,16 @@ class Repl(object):
             raise KeyboardInterrupt()
         elif char == "":
             return True
+        elif char == '': # backspace
+            if 0 < self.cursor_offset_in_line == len(self.current_line) and self.current_line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+                self.indent_levels.pop()
+                self.cursor_offset_in_line = self.indent_levels[-1]
+                self.current_line = self.current_line[:self.indent_levels[-1]]
+            else:
+                self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
+                self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
+                                     self.current_line[self.cursor_offset_in_line+1:])
+
         elif char in ("\n", "\r"):
             self.cursor_offset_in_line = 0
             self.history.on_enter(self.current_line)

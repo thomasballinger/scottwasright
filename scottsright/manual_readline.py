@@ -45,11 +45,6 @@ def forward_word(cursor_offset, line):
 def back_word(cursor_offset, line):
     raise NotImplementedError()
 
-@on('')
-def backspace(cursor_offset, line):
-    return (max(cursor_offset - 1, 0),
-            line[:max(0, cursor_offset-1)] + line[cursor_offset:])
-
 @on('[3~')
 def delete(cursor_offset, line):
     return (cursor_offset,
