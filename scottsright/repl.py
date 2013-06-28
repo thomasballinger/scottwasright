@@ -62,6 +62,7 @@ class Repl(object):
         self.interp = code.InteractiveInterpreter()
         self.buffer = []
         self.completer = Autocomplete(self.interp.locals)
+        self.completer.autocomplete_mode = 'simple'
 
     def __enter__(self):
         return self
@@ -130,26 +131,40 @@ class Repl(object):
             self.cursor_offset_in_line = len(self.current_line)
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
-        elif char == '\t':
+        elif char == '\t': #tab
             cw = self.current_word
-            if cw:
-                pass
-            else:
+            if cw and self.completer.matches:
+                self.current_word = self.completer.matches[0]
+            elif self.current_line.count(' ') == len(self.current_line):
                 for _ in range(INDENT_AMOUNT):
                     self.add_normal_character(' ')
+            else:
+                pass
         else:
             self.add_normal_character(char)
 
     @property
     def current_word(self):
-        words = re.split(r'([\w_][\w0-9._]+)', self.current_line)
+        words = re.split(r'([\w_][\w0-9._]*)', self.current_line)
         chars = 0
         cw = None
         for word in words:
             chars += len(word)
             if chars == self.cursor_offset_in_line and word and word.count(' ') == 0:
                 cw = word
-        return cw
+        if cw and re.match(r'^[\w_][\w0-9._]*$', cw):
+            return cw
+
+    @current_word.setter
+    def current_word(self, value):
+        # current word means word cursor is at the end of, so delete from cursor back to [ .]
+        assert self.current_word
+        pos = self.cursor_offset_in_line - 1
+        while pos > -1 and self.current_line[pos] not in tuple(' .:()'):
+            pos -= 1
+        start = pos + 1; del pos
+        self.current_line = self.current_line[:start] + value + self.current_line[self.cursor_offset_in_line:]
+        self.cursor_offset_in_line = start + len(value)
 
     def add_normal_character(self, char):
         self.current_line = (self.current_line[:self.cursor_offset_in_line] +
