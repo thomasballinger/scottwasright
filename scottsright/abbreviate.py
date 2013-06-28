@@ -8,7 +8,7 @@ import re
 
 def substitute_abbreviations(cursor_offset, line):
     """This should be much better"""
-    new_line = ''.join([ABBR[word] if word in ABBR else word for word in re.split(r'(\w+)', line)])
+    new_line = ''.join([ABBR.get(word, word) for word in re.split(r'(\w+)', line)])
     cursor_offset = cursor_offset + len(new_line) - len(line)
     return cursor_offset, new_line
 
