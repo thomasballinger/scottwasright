@@ -229,11 +229,13 @@ class Repl(object):
         lines = self.display_linize(self.current_display_line, columns)
         return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
 
-    def paint_infobox(self, msg, rows, columns):
-        #TODO actually truncate infobox if necessary
+    def paint_infobox(self, rows, columns, msg=None):
         if not (rows and columns):
             return numpy.zeros((0,0), dtype=numpy.character)
-        lines = msg.split('\n')
+        if msg is None:
+            lines = self.info(columns-2, rows).split('\n')
+        else:
+            lines = msg.split('\n')
         width = min(columns - 2, max([len(line) for line in lines]))
         output_lines = []
         output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
@@ -263,10 +265,10 @@ class Repl(object):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
 
-        if not about_to_exit: # since we don't want the infobox then
+        if self.current_word and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
-            infobox = self.paint_infobox(repr(self), max(visible_space_above, visible_space_below), width)
+            infobox = self.paint_infobox(max(visible_space_above, visible_space_below), width)
 
             #if visible_space_above >= infobox.shape[0]:
             if False: # never paint over text
@@ -292,7 +294,7 @@ class Repl(object):
         s += '>'
         return s
 
-    def __repr__(self):
+    def info(self, width, height):
         cw = self.current_word
         if cw:
             try:
@@ -301,7 +303,14 @@ class Repl(object):
                 e = traceback.format_exception(*sys.exc_info())
                 return '\n'.join(e)
             else:
-                return str(cw) + '\n' + str(self.completer.matches)[:70]
+                if not self.completer.matches:
+                    return 'no matches'
+                word_width = max(len(m) for m in self.completer.matches)
+                words_per_line = width / word_width
+                suggestions = '\n'.join([' '.join([(m+(' '*word_width))[:word_width]
+                    for m in self.completer.matches[i*words_per_line:(i+1)*words_per_line]])
+                    for i in range((len(self.completer.matches) / words_per_line) + 1)])
+                return str(cw) + '\n' + suggestions
         else:
             return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
 
