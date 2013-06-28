@@ -1,13 +1,11 @@
-import numpy
-import sys
 import traceback
-import re
 import sys
-import logging
 import re
+import logging
 import code
 from cStringIO import StringIO
 
+import numpy
 from bpython.autocomplete import Autocomplete
 
 from autoextend import AutoExtending
@@ -133,20 +131,23 @@ class Repl(object):
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif char == '\t':
-            for _ in range(INDENT_AMOUNT):
-                self.add_normal_character(' ')
+            cw = self.current_word
+            if cw:
+                pass
+            else:
+                for _ in range(INDENT_AMOUNT):
+                    self.add_normal_character(' ')
         else:
             self.add_normal_character(char)
 
     @property
     def current_word(self):
-
         words = re.split(r'([\w_][\w0-9._]+)', self.current_line)
         chars = 0
         cw = None
         for word in words:
             chars += len(word)
-            if chars == self.cursor_offset_in_line and word:
+            if chars == self.cursor_offset_in_line and word and word.count(' ') == 0:
                 cw = word
         return cw
 
@@ -218,7 +219,7 @@ class Repl(object):
         if not (rows and columns):
             return numpy.zeros((0,0), dtype=numpy.character)
         lines = msg.split('\n')
-        width = max([len(line) for line in lines])
+        width = min(columns - 2, max([len(line) for line in lines]))
         output_lines = []
         output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
         for line in lines:
@@ -226,7 +227,7 @@ class Repl(object):
         output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
         r = numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
         assert len(r.shape) == 2
-        return r
+        return r[:rows-1, :]
 
     def paint(self, min_height, width, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
@@ -279,8 +280,13 @@ class Repl(object):
     def __repr__(self):
         cw = self.current_word
         if cw:
-            self.completer.complete(cw, 0)
-            return str(cw) + '\n' + str(self.completer.matches)[:70]
+            try:
+                self.completer.complete(cw, 0)
+            except:
+                e = traceback.format_exception(*sys.exc_info())
+                return '\n'.join(e)
+            else:
+                return str(cw) + '\n' + str(self.completer.matches)[:70]
         else:
             return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
 
