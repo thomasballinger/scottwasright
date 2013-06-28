@@ -2,14 +2,22 @@ import numpy
 import sys
 import traceback
 import re
+import sys
+import logging
+import re
+import code
 from cStringIO import StringIO
+
+from bpython.autocomplete import Autocomplete
 
 from autoextend import AutoExtending
 from manual_readline import char_sequences as rl_char_sequences
 from history import History
 from abbreviate import substitute_abbreviations
 
-TAB_WIDTH = 4
+INDENT_AMOUNT = 4
+
+logging.basicConfig(level=logging.DEBUG, filename='coderepl.log')
 
 class Repl(object):
     """
@@ -52,6 +60,10 @@ class Repl(object):
 
         sys.stdout = StringIO()
         sys.stderr = StringIO()
+
+        self.interp = code.InteractiveInterpreter()
+        self.buffer = []
+        self.completer = Autocomplete(self.interp.locals)
 
     def __enter__(self):
         return self
@@ -121,7 +133,7 @@ class Repl(object):
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif char == '\t':
-            for _ in range(TAB_WIDTH):
+            for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
         else:
             self.add_normal_character(char)
@@ -146,14 +158,35 @@ class Repl(object):
         self.cursor_offset_in_line, self.current_line = substitute_abbreviations(self.cursor_offset_in_line, self.current_line)
         #TODO deal with characters that take up more than one space? do we care?
 
-    def push(self, msg):
-        """Returns output, error output, and whether command is complete"""
-        try:
-            out = repr(eval(msg))
-            return (out, None, True, 0)
-        except:
-            err = traceback.format_exc()
-            return (None, err, True, 0)
+    def push(self, line):
+        """Run a line of code.
+
+        Return ("for stdout", "for_stderr", finished?)
+        """
+        self.buffer.append(line)
+        indent = len(re.match(r'[ ]*', line).group())
+        self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
+
+        if line.endswith(':'):
+            self.indent_levels.append(indent + INDENT_AMOUNT)
+        elif line and line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+            self.indent_levels.pop()
+        out_spot = sys.stdout.tell()
+        err_spot = sys.stderr.tell()
+        unfinished = self.interp.runsource('\n'.join(self.buffer))
+        sys.stdout.seek(out_spot)
+        sys.stderr.seek(err_spot)
+        out = sys.stdout.read()
+        err = sys.stderr.read()
+        if unfinished and not err:
+            logging.debug('unfinished - line added to buffer')
+            return (None, None, False, self.indent_levels[-1])
+        else:
+            logging.debug('finished - buffer cleared')
+            self.buffer = []
+            if err:
+                self.indent_levels = [0]
+            return (out[:-1], err[:-1], True, self.indent_levels[-1])
 
     def display_linize(self, msg, columns):
         display_lines = ([msg[start:end]
@@ -242,6 +275,14 @@ class Repl(object):
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'
         s += '>'
         return s
+
+    def __repr__(self):
+        cw = self.current_word
+        if cw:
+            self.completer.complete(cw, 0)
+            return str(cw) + '\n' + str(self.completer.matches)[:70]
+        else:
+            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
 
 def test():
     with Repl() as r:
