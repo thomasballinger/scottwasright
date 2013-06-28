@@ -1,6 +1,6 @@
 import numpy
 
-#TODO do something cooler and more rubust like
+#TODO do something cooler and more robust like
 #http://stackoverflow.com/a/9059858/398212
 
 class AutoExtending(object):
