@@ -36,6 +36,8 @@ class History(object):
         else:
             if self.history_index == 0:
                 self.filter_line = current_line
+            if len(self.logical_lines) == 0:
+                return cursor_offset, current_line
             self.history_index = (self.history_index) % len(self.logical_lines) + 1
             return self.use_history_index()
 

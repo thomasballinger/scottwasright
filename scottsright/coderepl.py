@@ -3,6 +3,8 @@ import logging
 import re
 import code
 
+from bpython.autocomplete import Autocomplete
+
 import scottsright.repl
 
 logging.basicConfig(level=logging.DEBUG, filename='coderepl.log')
@@ -14,9 +16,15 @@ class CodeRepl(scottsright.repl.Repl):
         super(CodeRepl, self).__init__()
         self.interp = code.InteractiveInterpreter()
         self.buffer = []
+        self.completer = Autocomplete(self.interp.locals)
 
     def __repr__(self):
-        return str(self.indent_levels) + '\n' + repr(self.current_line) + '\n' + str(self.cursor_offset_in_line)
+        cw = self.current_word
+        if cw:
+            self.completer.complete(cw, 0)
+            return str(cw) + '\n' + str(self.completer.matches)[:70]
+        else:
+            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
 
     def push(self, line):
         """Run a line of code.

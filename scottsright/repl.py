@@ -1,6 +1,7 @@
 import numpy
 import sys
 import traceback
+import re
 from cStringIO import StringIO
 
 from autoextend import AutoExtending
@@ -124,6 +125,18 @@ class Repl(object):
                 self.add_normal_character(' ')
         else:
             self.add_normal_character(char)
+
+    @property
+    def current_word(self):
+
+        words = re.split(r'([\w_][\w0-9._]+)', self.current_line)
+        chars = 0
+        cw = None
+        for word in words:
+            chars += len(word)
+            if chars == self.cursor_offset_in_line and word:
+                cw = word
+        return cw
 
     def add_normal_character(self, char):
         self.current_line = (self.current_line[:self.cursor_offset_in_line] +
