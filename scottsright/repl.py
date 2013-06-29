@@ -113,6 +113,10 @@ class Repl(object):
                 self.indent_levels.pop()
                 self.cursor_offset_in_line = self.indent_levels[-1]
                 self.current_line = self.current_line[:self.indent_levels[-1]]
+            elif self.cursor_offset_in_line == len(self.current_line) and self.current_line.endswith(' '*INDENT_AMOUNT):
+                #dumber version
+                self.cursor_offset_in_line = self.cursor_offset_in_line - 4
+                self.current_line = self.current_line[:-4]
             else:
                 self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
                 self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +

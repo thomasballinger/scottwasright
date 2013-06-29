@@ -8,5 +8,4 @@ setup(name='scottsright',
       author_email='thomasballinger@gmail.com',
       license='MIT',
       packages=['scottsright'],
-      install_requires=['numpy'],
       zip_safe=False)
