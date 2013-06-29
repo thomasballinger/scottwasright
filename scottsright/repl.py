@@ -305,11 +305,14 @@ class Repl(object):
             else:
                 if not self.completer.matches:
                     return 'no matches'
-                word_width = max(len(m) for m in self.completer.matches)
-                words_per_line = width / word_width
-                suggestions = '\n'.join([' '.join([(m+(' '*word_width))[:word_width]
-                    for m in self.completer.matches[i*words_per_line:(i+1)*words_per_line]])
-                    for i in range((len(self.completer.matches) / words_per_line) + 1)])
+                matches = sorted(set(self.completer.matches))
+                word_width = max(len(m) for m in matches)
+                words_per_line = ((width+1) / (word_width+1))
+                suggestions = '\n'.join(
+                    [' '.join(
+                        [m+(' '*(word_width - len(m)))
+                         for m in matches[i*words_per_line:(i+1)*words_per_line]])
+                     for i in range((len(matches) / words_per_line) + 1)])
                 return str(cw) + '\n' + suggestions
         else:
             return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
