@@ -9,10 +9,17 @@ get a sense for how they're implemented in bpython.
 
 Things to do:
 
-* colored everything
-* tab completion of all kinds
-* useful infobox
-* control c working (maybe need to use cbreak mode instead of raw?) Or a thread
-    to check back to see if cdoe.interpreter should be interrupted?
-* history readline commands
+Terminal Wrapper Library
+------------------------
+
+* Context manager for putting stdin in raw mode
+* Library for symbolically processing input into keys
+* get_event function that blocks, returning window change events, keypresses
+* screen output library that renders a rectangle of characters to the screen
+
+
+Paint Layer
+-----------
+
 * window resizing (probably not resizing prior output though)
+* nice api for painting characters different places
