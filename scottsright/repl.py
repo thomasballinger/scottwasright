@@ -97,6 +97,40 @@ class Repl(object):
     def current_display_line(self):
         return (">>> " if self.done else "... ") + self.current_line
 
+    def on_backspace(self):
+        if 0 < self.cursor_offset_in_line == len(self.current_line) and self.current_line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+            self.indent_levels.pop()
+            self.cursor_offset_in_line = self.indent_levels[-1]
+            self.current_line = self.current_line[:self.indent_levels[-1]]
+        elif self.cursor_offset_in_line == len(self.current_line) and self.current_line.endswith(' '*INDENT_AMOUNT):
+            #dumber version
+            self.cursor_offset_in_line = self.cursor_offset_in_line - 4
+            self.current_line = self.current_line[:-4]
+        else:
+            self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
+            self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
+                                 self.current_line[self.cursor_offset_in_line+1:])
+
+    def on_return(self):
+        self.cursor_offset_in_line = 0
+        self.history.on_enter(self.current_line)
+        self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
+        output, err, self.done, indent = self.push(self.current_line)
+        if output:
+            self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in output.split('\n')], []))
+        if err:
+            self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
+        self.current_line = ' '*indent
+        self.cursor_offset_in_line = len(self.current_line)
+
+    def on_tab(self):
+        cw = self.current_word
+        if cw and self.completer.matches:
+            self.current_word = self.completer.matches[0]
+        elif self.current_line.count(' ') == len(self.current_line):
+            for _ in range(INDENT_AMOUNT):
+                self.add_normal_character(' ')
+
     def process_char(self, char):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
         self.last_key_pressed = char
@@ -109,41 +143,13 @@ class Repl(object):
         elif char == "":
             return True
         elif char == '': # backspace
-            if 0 < self.cursor_offset_in_line == len(self.current_line) and self.current_line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
-                self.indent_levels.pop()
-                self.cursor_offset_in_line = self.indent_levels[-1]
-                self.current_line = self.current_line[:self.indent_levels[-1]]
-            elif self.cursor_offset_in_line == len(self.current_line) and self.current_line.endswith(' '*INDENT_AMOUNT):
-                #dumber version
-                self.cursor_offset_in_line = self.cursor_offset_in_line - 4
-                self.current_line = self.current_line[:-4]
-            else:
-                self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-                self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
-                                     self.current_line[self.cursor_offset_in_line+1:])
-
+            self.on_backspace()
         elif char in ("\n", "\r"):
-            self.cursor_offset_in_line = 0
-            self.history.on_enter(self.current_line)
-            self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
-            output, err, self.done, indent = self.push(self.current_line)
-            if output:
-                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in output.split('\n')], []))
-            if err:
-                self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
-            self.current_line = ' '*indent
-            self.cursor_offset_in_line = len(self.current_line)
+            self.on_return()
         elif char == "" or char == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif char == '\t': #tab
-            cw = self.current_word
-            if cw and self.completer.matches:
-                self.current_word = self.completer.matches[0]
-            elif self.current_line.count(' ') == len(self.current_line):
-                for _ in range(INDENT_AMOUNT):
-                    self.add_normal_character(' ')
-            else:
-                pass
+            self.on_tab()
         else:
             self.add_normal_character(char)
 
