@@ -1,7 +1,8 @@
 ABBR = {
         'improt' : 'import',
         'imprt'  : 'import',
-        'impotr'  : 'import'
+        'impotr' : 'import',
+        'form'   : 'from',
         }
 
 import re
