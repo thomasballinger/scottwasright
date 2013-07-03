@@ -8,6 +8,7 @@ from cStringIO import StringIO
 import numpy
 from bpython.autocomplete import Autocomplete
 
+import events
 from autoextend import AutoExtending
 from manual_readline import char_sequences as rl_char_sequences
 from history import History
@@ -15,7 +16,7 @@ from abbreviate import substitute_abbreviations
 
 INDENT_AMOUNT = 4
 
-logging.basicConfig(level=logging.DEBUG, filename='coderepl.log')
+logging.basicConfig(level=logging.DEBUG, filename='repl.log')
 
 class Repl(object):
     """
@@ -50,7 +51,8 @@ class Repl(object):
 
         self.indent_levels = [0]
 
-        self.display_line_width = None # the width to which to wrap the current line
+        self.width = None # the width to which to wrap the current line
+        self.height = None # the width to which to wrap the current line
 
         self.orig_stdin = sys.stdin
         self.orig_stdout = sys.stdout
@@ -74,8 +76,9 @@ class Repl(object):
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
 
-    def dumb_print_output(self, rows, columns):
-        a, cpos = self.paint(rows, columns)
+    def dumb_print_output(self):
+        rows, columns = self.height, self.width
+        a, cpos = self.paint()
         a[cpos[0], cpos[1]] = '~'
         def my_print(*messages):
             self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
@@ -91,7 +94,7 @@ class Repl(object):
         for c in raw_input('>'):
             if c in '/':
                 c = '\n'
-            self.process_char(c)
+            self.process_event(c)
 
     @property
     def current_display_line(self):
@@ -114,12 +117,12 @@ class Repl(object):
     def on_return(self):
         self.cursor_offset_in_line = 0
         self.history.on_enter(self.current_line)
-        self.display_lines.extend(self.display_linize(self.current_display_line, self.display_line_width))
+        self.display_lines.extend(self.display_linize(self.current_display_line, self.width))
         output, err, self.done, indent = self.push(self.current_line)
         if output:
-            self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in output.split('\n')], []))
+            self.display_lines.extend(sum([self.display_linize(line, self.width) for line in output.split('\n')], []))
         if err:
-            self.display_lines.extend(sum([self.display_linize(line, self.display_line_width) for line in err.split('\n')], []))
+            self.display_lines.extend(sum([self.display_linize(line, self.width) for line in err.split('\n')], []))
         self.current_line = ' '*indent
         self.cursor_offset_in_line = len(self.current_line)
 
@@ -131,27 +134,32 @@ class Repl(object):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
-    def process_char(self, char):
+    def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
-        self.last_key_pressed = char
-        if char in rl_char_sequences:
-            self.cursor_offset_in_line, self.current_line = rl_char_sequences[char](self.cursor_offset_in_line, self.current_line)
-        elif char in self.history.char_sequences:
-            self.cursor_offset_in_line, self.current_line = self.history.char_sequences[char](self.cursor_offset_in_line, self.current_line)
-        elif char == "":
+        logging.debug("processing event %r", e)
+        if isinstance(e, events.WindowChangeEvent):
+            logging.debug('window change to %d %d', e.width, e.height)
+            self.width, self.height = e.width, e.height
+            return
+        self.last_key_pressed = e
+        if e in rl_char_sequences:
+            self.cursor_offset_in_line, self.current_line = rl_char_sequences[e](self.cursor_offset_in_line, self.current_line)
+        elif e in self.history.char_sequences:
+            self.cursor_offset_in_line, self.current_line = self.history.char_sequences[e](self.cursor_offset_in_line, self.current_line)
+        elif e == "":
             raise KeyboardInterrupt()
-        elif char == "":
+        elif e == "":
             return True
-        elif char == '': # backspace
+        elif e == '': # backspace
             self.on_backspace()
-        elif char in ("\n", "\r"):
+        elif e in ("\n", "\r"):
             self.on_return()
-        elif char == "" or char == "":
+        elif e == "" or e == "":
             pass #dunno what these are, but they screw things up #TODO find out
-        elif char == '\t': #tab
+        elif e == '\t': #tab
             self.on_tab()
         else:
-            self.add_normal_character(char)
+            self.add_normal_character(e)
 
     @property
     def current_word(self):
@@ -258,8 +266,9 @@ class Repl(object):
         assert len(r.shape) == 2
         return r[:rows-1, :]
 
-    def paint(self, min_height, width, about_to_exit=False):
+    def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
+        width, min_height = self.width, self.height
         a = AutoExtending(0, width)
         current_line_start_row = len(self.display_lines) - self.scroll_offset
 
@@ -331,9 +340,10 @@ class Repl(object):
 
 def test():
     with Repl() as r:
-        r.display_line_width = 50
+        r.width = 50
+        r.height = 20
         while True:
-            scrolled = r.dumb_print_output(20, 50)
+            scrolled = r.dumb_print_output()
             r.scroll_offset += scrolled
             r.dumb_input()
 

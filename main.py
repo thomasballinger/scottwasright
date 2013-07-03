@@ -6,14 +6,14 @@ def main():
     with Terminal(sys.stdin, sys.stdout) as t:
         with Repl() as r:
             rows, columns = t.get_screen_size()
-            r.display_line_width = columns
+            r.width = columns
+            r.height = rows
             while True:
-                array, cursor_pos = r.paint(rows, columns)
+                result = r.process_event(t.get_event())
+                array, cursor_pos = r.paint()
                 scrolled = t.render_to_terminal(array, cursor_pos)
                 r.scroll_offset += scrolled
-                if r.process_char(t.get_char()):
-                    array, cursor_pos = r.paint(rows, columns, about_to_exit=True)
-                    t.render_to_terminal(array, cursor_pos)
+                if result:
                     sys.exit()
 
 main()

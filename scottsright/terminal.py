@@ -12,9 +12,18 @@ import numpy
 
 import termformat
 import termformatconstants
+import events
 
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
+SIGWINCH_COUNTER = 0
+
+def retrying_read(stream):
+    while True:
+        try:
+            return stream.read(1)
+        except IOError:
+            logging.debug('read interrupted, retrying')
 
 class Terminal(object):
     """
@@ -42,13 +51,18 @@ class Terminal(object):
         """
         #TODO does this actually get the terminal settings we need, or because it's a
         # subshell could it be completely wrong, and no better than hardcoding?
+        logging.debug('-------initializing Terminal object %r------' % self)
         self.original_stty = subprocess.check_output(['stty', '-g'])
 
         tty.setraw(in_stream)
         self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
-        signal.signal(signal.SIGWINCH, lambda signum, frame: self.window_change_event())
+        def signal_handler(signum, frame):
+            global SIGWINCH_COUNTER
+            SIGWINCH_COUNTER += 1
+        signal.signal(signal.SIGWINCH, signal_handler)
+        self.sigwinch_counter = SIGWINCH_COUNTER - 1
         self.top_usable_row, _ = self.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
 
@@ -92,7 +106,7 @@ class Terminal(object):
         for row in rest_of_rows: # if array too small
             self.set_screen_position((row, 1))
             self.erase_line()
-        logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
+        #logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
         for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
@@ -108,27 +122,27 @@ class Terminal(object):
         self.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
-    def window_change_event(self):
-        raise Exception("Window Change Event")
-        #TODO this should be in the same input stream, so we need concurrency?
-
-    def get_char(self):
-        def get_next_partial_char():
+    def get_event(self):
+        chars = []
+        while True:
+            logging.debug('checking if instance counter (%d) is less than global (%d) ' % (self.sigwinch_counter, SIGWINCH_COUNTER))
+            if self.sigwinch_counter < SIGWINCH_COUNTER:
+                self.sigwinch_counter = SIGWINCH_COUNTER
+                self.in_buffer = chars + self.in_buffer
+                return events.WindowChangeEvent(*self.get_screen_size())
+            if chars and chars[0] != '\x1b':
+                return ''.join(chars)
+            if len(chars) == 2 and chars[1] != '[':
+                return ''.join(chars)
+            if len(chars) > 2 and chars[1] == '[' and chars[-1] not in tuple('1234567890;'):
+                return ''.join(chars)
             if self.in_buffer:
-                c = self.in_buffer.pop(0)
-            else:
-                c = self.in_stream.read(1)
-            return c
-        c = get_next_partial_char()
-        if c == '\x1b':
-            while True:
-                c += get_next_partial_char()
-                if len(c) == 2 and c[1] != '[':
-                    break
-                if len(c) > 2 and c[1] == '[' and c[-1] not in tuple('1234567890;'):
-                    break
-        logging.debug('get_char: %r', c)
-        return c
+                chars.append(self.in_buffer.pop(0))
+                continue
+            try:
+                chars.append(self.in_stream.read(1))
+            except IOError:
+                continue
 
     QUERY_CURSOR_POSITION = "\x1b[6n"
     def produce_cursor_sequence(char):
@@ -150,7 +164,7 @@ class Terminal(object):
         self.out_stream.write(Terminal.QUERY_CURSOR_POSITION)
         resp = ''
         while True:
-            c = self.in_stream.read(1)
+            c = retrying_read(self.in_stream)
             resp += c
             m = re.search('(?P<extra>.*)\x1b\[(?P<row>\\d+);(?P<column>\\d+)R', resp)
             if m:
@@ -202,7 +216,7 @@ def test():
     with Terminal(sys.stdin, sys.stdout) as t:
         rows, columns = t.get_screen_size()
         while True:
-            c = t.get_char()
+            c = t.get_event()
             if c == "":
                 sys.exit() # same as raise SystemExit()
             elif c == "h":
@@ -221,6 +235,8 @@ def test():
                 a = numpy.array([[c] * columns for _ in range(1)])
             elif c == "e":
                 a = numpy.array([[c] * columns for _ in range(1)])
+            elif isinstance(c, events.WindowChangeEvent):
+                a = t.array_from_text("window just changed to %d rows and %d columns" % (c.rows, c.columns))
             elif c == "":
                 [t.out_stream.write('\n') for _ in range(rows)]
                 continue
@@ -237,7 +253,7 @@ def main():
     #for char in inputStream():
     t.render_to_terminal(a)
     while True:
-        c = t.get_char()
+        c = t.get_event()
         if c == "":
             t.cleanup()
             sys.exit()
