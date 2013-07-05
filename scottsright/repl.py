@@ -14,6 +14,7 @@ from manual_readline import char_sequences as rl_char_sequences
 from history import History
 from abbreviate import substitute_abbreviations
 
+INFOBOX_ONLY_BELOW = True
 INDENT_AMOUNT = 4
 
 logging.basicConfig(level=logging.DEBUG, filename='repl.log')
@@ -291,8 +292,7 @@ class Repl(object):
             visible_space_below = min_height - cursor_row
             infobox = self.paint_infobox(max(visible_space_above, visible_space_below), width)
 
-            #if visible_space_above >= infobox.shape[0]:
-            if False: # never paint over text
+            if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
                 a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
             else:
