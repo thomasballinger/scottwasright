@@ -16,6 +16,7 @@ Terminal Wrapper Library
 * Library for symbolically processing input into keys
 * get_event function that blocks, returning window change events, keypresses
 * screen output library that renders a rectangle of characters to the screen
+* fix window size changing (happens now, but screws up easily)
 
 
 Paint Layer
