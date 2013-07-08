@@ -67,6 +67,8 @@ class Terminal(object):
         self.top_usable_row, _ = self.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
 
+        self.tc = terminalcontrol.TCPartialler(lambda: self.out_stream)
+
     def __enter__(self):
         return self
 
@@ -98,7 +100,7 @@ class Terminal(object):
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.set_screen_position((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
-            self.erase_rest_of_line()
+            self.tc.erase_rest_of_line()
         #logging.debug('array: '+repr(array))
         #logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
@@ -106,12 +108,13 @@ class Terminal(object):
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
             self.set_screen_position((row, 1))
-            self.erase_line()
+            self.tc.erase_line()
         #logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
         for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
-            self.out_stream.write(terminalcontrol.SCROLL_DOWN)
+            self.tc.scroll_down()
+            #self.out_stream.write(terminalcontrol.SCROLL_DOWN)
             if self.top_usable_row > 1:
                 self.top_usable_row -= 1
             else:
@@ -145,20 +148,6 @@ class Terminal(object):
             except IOError:
                 continue
 
-    def produce_cursor_sequence(char):
-        """
-        Returns a method that issues a cursor control sequence.
-        see: https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes
-
-        e.g. A, B, C, D correspond to cursor up, down, forward, and backward
-        """
-        def func(self, n=1):
-            if n: self.out_stream.write("[%d%s" % (n, char))
-        return func
-    up, down, fwd, back = [produce_cursor_sequence(char) for char in 'ABCD']
-    def erase_rest_of_line(self): self.out_stream.write(terminalcontrol.ERASE_REST_OF_LINE)
-    def erase_line(self): self.out_stream.write(terminalcontrol.ERASE_LINE)
-
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
         self.out_stream.write(terminalcontrol.QUERY_CURSOR_POSITION)
@@ -179,8 +168,8 @@ class Terminal(object):
     def get_screen_size(self):
         #TODO generalize get_screen_position code and use it here instead
         orig = self.get_screen_position()
-        self.fwd(10000) # 10000 is much larger than any reasonable terminal
-        self.down(10000)
+        self.tc.fwd(10000) # 10000 is much larger than any reasonable terminal
+        self.tc.down(10000)
         size = self.get_screen_position()
         self.set_screen_position(orig)
         return size
@@ -206,11 +195,11 @@ class Terminal(object):
         self.out_stream.write(terminalcontrol.SCROLL_DOWN)
         rows, _ = self.get_screen_position()
         for i in range(1000):
-            self.erase_line()
-            self.down()
+            self.tc.erase_line()
+            self.tc.down()
         self.set_screen_position((rows, 1))
         os.system('stty '+self.original_stty)
-        self.erase_rest_of_line()
+        self.tc.erase_rest_of_line()
 
 def test():
     with Terminal(sys.stdin, sys.stdout) as t:

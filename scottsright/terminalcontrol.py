@@ -7,6 +7,8 @@ inspired by
 https://github.com/gwk/gloss/blob/master/python/gloss/io/cs.py
 """
 
+import functools
+
 
 
 
@@ -25,9 +27,9 @@ def produce_convenience_function(name, seq):
     func.__name__ = name.lower()
     return func
 
-for name, value in locals().items():
+for name, value in globals().items():
     if name.upper() == name:
-        locals()[name.lower()] = produce_convenience_function(name, value)
+        globals()[name.lower()] = produce_convenience_function(name, value)
 
 ### Overwrite some of these with more intelligent versions
 
@@ -35,11 +37,28 @@ def produce_cursor_sequence(char):
     """
     Returns a method that issues a cursor control sequence.
     """
-    def func(self, n=1):
-        if n: self.out_stream.write("[%d%s" % (n, char))
+    def func(stream, n=1):
+        if n: stream.write("[%d%s" % (n, char))
     return func
 
+up, down, forward, back = [produce_cursor_sequence(c) for c in 'ABCD']
+fwd = forward
+
+class TCPartialler(object):
+    """Returns a property object that which partials functions on att lookup"""
+    def __init__(self, stream_getter):
+        self.stream_getter = stream_getter
+    def __getattr__(self, att):
+        return functools.partial(globals()[att], self.stream_getter())
+
 if __name__ == '__main__':
-    for k in locals().keys():
+    for k in globals().keys():
         print k
+
+    import cStringIO
+    fake = cStringIO.StringIO()
+    t = TCPartialler(lambda: fake)
+    t.scroll_down()
+    fake.seek(0)
+    print repr(fake.read())
 
