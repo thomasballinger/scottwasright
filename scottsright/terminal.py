@@ -11,6 +11,7 @@ import logging
 import numpy
 
 import termformat
+import terminalcontrol
 import termformatconstants
 import events
 
@@ -110,7 +111,7 @@ class Terminal(object):
         offscreen_scrolls = 0
         for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
-            self.out_stream.write("D")
+            self.out_stream.write(terminalcontrol.SCROLL_DOWN)
             if self.top_usable_row > 1:
                 self.top_usable_row -= 1
             else:
@@ -144,7 +145,6 @@ class Terminal(object):
             except IOError:
                 continue
 
-    QUERY_CURSOR_POSITION = "\x1b[6n"
     def produce_cursor_sequence(char):
         """
         Returns a method that issues a cursor control sequence.
@@ -156,12 +156,12 @@ class Terminal(object):
             if n: self.out_stream.write("[%d%s" % (n, char))
         return func
     up, down, fwd, back = [produce_cursor_sequence(char) for char in 'ABCD']
-    def erase_rest_of_line(self): self.out_stream.write("[K")
-    def erase_line(self): self.out_stream.write("[2K")
+    def erase_rest_of_line(self): self.out_stream.write(terminalcontrol.ERASE_REST_OF_LINE)
+    def erase_line(self): self.out_stream.write(terminalcontrol.ERASE_LINE)
 
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
-        self.out_stream.write(Terminal.QUERY_CURSOR_POSITION)
+        self.out_stream.write(terminalcontrol.QUERY_CURSOR_POSITION)
         resp = ''
         while True:
             c = retrying_read(self.in_stream)
@@ -203,7 +203,7 @@ class Terminal(object):
         return a
 
     def cleanup(self):
-        self.out_stream.write("D")
+        self.out_stream.write(terminalcontrol.SCROLL_DOWN)
         rows, _ = self.get_screen_position()
         for i in range(1000):
             self.erase_line()
