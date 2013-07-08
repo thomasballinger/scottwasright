@@ -9,8 +9,7 @@ https://github.com/gwk/gloss/blob/master/python/gloss/io/cs.py
 
 import functools
 
-
-
+import logging
 
 QUERY_CURSOR_POSITION = "\x1b[6n"
 SCROLL_DOWN = "D"
@@ -45,11 +44,19 @@ up, down, forward, back = [produce_cursor_sequence(c) for c in 'ABCD']
 fwd = forward
 
 class TCPartialler(object):
-    """Returns a property object that which partials functions on att lookup"""
+    """Returns terminal control functions partialed for stream returned by
+    stream_getter on att lookup"""
     def __init__(self, stream_getter):
         self.stream_getter = stream_getter
     def __getattr__(self, att):
         return functools.partial(globals()[att], self.stream_getter())
+
+def retrying_read(stream):
+    while True:
+        try:
+            return stream.read(1)
+        except IOError:
+            logging.debug('read interrupted, retrying')
 
 if __name__ == '__main__':
     for k in globals().keys():

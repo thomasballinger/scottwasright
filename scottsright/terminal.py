@@ -26,6 +26,7 @@ def retrying_read(stream):
         except IOError:
             logging.debug('read interrupted, retrying')
 
+
 class Terminal(object):
     """
 
@@ -59,6 +60,7 @@ class Terminal(object):
         self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
+        self.tc = terminalcontrol.TCPartialler(lambda: self.out_stream)
         def signal_handler(signum, frame):
             global SIGWINCH_COUNTER
             SIGWINCH_COUNTER += 1
@@ -67,7 +69,6 @@ class Terminal(object):
         self.top_usable_row, _ = self.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
 
-        self.tc = terminalcontrol.TCPartialler(lambda: self.out_stream)
 
     def __enter__(self):
         return self
@@ -114,7 +115,6 @@ class Terminal(object):
         for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
             self.tc.scroll_down()
-            #self.out_stream.write(terminalcontrol.SCROLL_DOWN)
             if self.top_usable_row > 1:
                 self.top_usable_row -= 1
             else:
@@ -150,7 +150,7 @@ class Terminal(object):
 
     def get_screen_position(self):
         """Returns the terminal (row, column) of the cursor"""
-        self.out_stream.write(terminalcontrol.QUERY_CURSOR_POSITION)
+        self.tc.query_cursor_position()
         resp = ''
         while True:
             c = retrying_read(self.in_stream)
