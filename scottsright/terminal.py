@@ -19,13 +19,6 @@ logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
 SIGWINCH_COUNTER = 0
 
-def retrying_read(stream):
-    while True:
-        try:
-            return stream.read(1)
-        except IOError:
-            logging.debug('read interrupted, retrying')
-
 
 class Terminal(object):
     """
@@ -60,7 +53,7 @@ class Terminal(object):
         self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
-        self.tc = terminalcontrol.TCPartialler(lambda: self.out_stream)
+        self.tc = terminalcontrol.TCPartialler(lambda: self.in_stream, lambda: self.out_stream)
         def signal_handler(signum, frame):
             global SIGWINCH_COUNTER
             SIGWINCH_COUNTER += 1
@@ -153,7 +146,7 @@ class Terminal(object):
         self.tc.query_cursor_position()
         resp = ''
         while True:
-            c = retrying_read(self.in_stream)
+            c = self.tc.retrying_read()
             resp += c
             m = re.search('(?P<extra>.*)\x1b\[(?P<row>\\d+);(?P<column>\\d+)R', resp)
             if m:
