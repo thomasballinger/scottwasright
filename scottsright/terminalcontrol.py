@@ -7,8 +7,12 @@ inspired by
 https://github.com/gwk/gloss/blob/master/python/gloss/io/cs.py
 """
 
+import os
+import sys
+import tty
 import signal
 import re
+import subprocess
 import logging
 
 import events
@@ -36,20 +40,26 @@ def produce_cursor_sequence(char):
 class TCPartialler(object):
     """Returns terminal control functions partialed for stream returned by
     stream_getter on att lookup"""
-    def __init__(self, in_stream_getter, out_stream_getter, in_buffer_getter):
-        self.in_stream_getter = in_stream_getter
-        self.out_stream_getter = out_stream_getter
-        self.in_buffer_getter = in_buffer_getter
+    def __init__(self, in_stream=sys.stdin, out_stream=sys.stdout):
+        self.in_stream = in_stream
+        self.out_stream = out_stream
+        self.in_buffer = []
         self.sigwinch_counter = _SIGWINCH_COUNTER - 1
+
+    def __enter__(self):
         def signal_handler(signum, frame):
             global _SIGWINCH_COUNTER
             _SIGWINCH_COUNTER += 1
         signal.signal(signal.SIGWINCH, signal_handler)
 
-    in_stream = property(lambda self: self.in_stream_getter())
-    out_stream = property(lambda self: self.out_stream_getter())
-    def _in_buffer_setter(self, value): self.in_buffer_getter()[:] = value
-    in_buffer = property(lambda self: self.in_buffer_getter(), _in_buffer_setter)
+        #TODO implement this with termios/tty instead of subprocess
+        self.original_stty = subprocess.check_output(['stty', '-g'])
+        tty.setraw(self.in_stream)
+        return self
+
+    def __exit__(self, type, value, traceback):
+        signal.signal(signal.SIGWINCH, lambda: None)
+        os.system('stty '+self.original_stty)
 
     up, down, forward, back = [produce_cursor_sequence(c) for c in 'ABCD']
     fwd = forward

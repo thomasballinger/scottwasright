@@ -19,14 +19,10 @@ logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 class Terminal(object):
     """
 
-    Renders 2D arrays of characters
+    Renders 2D arrays of characters and cursor position
 
-    takes in:
-     -2D array to render
-     -cursor position
     outputs:
      -number of times scrolled
-     -keystrokes to be dealt with so a new array can be returned to display
      -initial position of cursor on the screen
 
     TODO: when less than whole screen owned, deal with that:
@@ -34,29 +30,28 @@ class Terminal(object):
         -scroll down before rendering as necessary
 
     """
-    def __init__(self, in_stream, out_stream):
+    def __init__(self, tc):
         """
 
         in_stream must respond work with tty.setraw(in_stream), and in_stream.read(1)
         out_stream must respond to out_stream.write('some message')
         """
-        #TODO does this actually get the terminal settings we need, or because it's a
-        # subshell could it be completely wrong, and no better than hardcoding?
         logging.debug('-------initializing Terminal object %r------' % self)
-        self.in_stream = in_stream
-        self.out_stream = out_stream
-        self.in_buffer = []
-        self.tc = terminalcontrol.TCPartialler(lambda: self.in_stream, lambda: self.out_stream, lambda: self.in_buffer)
+        self.tc = tc
 
     def __enter__(self):
-        self.original_stty = subprocess.check_output(['stty', '-g'])
-        tty.setraw(self.in_stream)
         self.top_usable_row, _ = self.tc.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
         return self
 
     def __exit__(self, type, value, traceback):
-        self.cleanup()
+        self.tc.out_stream.write(terminalcontrol.SCROLL_DOWN)
+        rows, _ = self.tc.get_screen_position()
+        for i in range(1000):
+            self.tc.erase_line()
+            self.tc.down()
+        self.tc.set_screen_position((rows, 1))
+        self.tc.erase_rest_of_line()
 
     def render_to_terminal(self, array, cursor_pos=(0,0), farray=None):
         """Renders array to terminal, returns the number of lines
@@ -82,7 +77,7 @@ class Terminal(object):
         shared = min(len(array), len(rows_for_use))
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.tc.set_screen_position((row, 1))
-            self.out_stream.write(termformat.formatted_text(line, fline))
+            self.tc.out_stream.write(termformat.formatted_text(line, fline))
             self.tc.erase_rest_of_line()
         #logging.debug('array: '+repr(array))
         #logging.debug('shared: '+repr(shared))
@@ -103,7 +98,7 @@ class Terminal(object):
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
             self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
-            self.out_stream.write(termformat.formatted_text(line, fline))
+            self.tc.out_stream.write(termformat.formatted_text(line, fline))
 
         self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
@@ -125,47 +120,38 @@ class Terminal(object):
                 a = a[:r]
         return a
 
-    def cleanup(self):
-        self.out_stream.write(terminalcontrol.SCROLL_DOWN)
-        rows, _ = self.tc.get_screen_position()
-        for i in range(1000):
-            self.tc.erase_line()
-            self.tc.down()
-        self.tc.set_screen_position((rows, 1))
-        os.system('stty '+self.original_stty)
-        self.tc.erase_rest_of_line()
-
 def test():
-    with Terminal(sys.stdin, sys.stdout) as t:
-        rows, columns = t.tc.get_screen_size()
-        while True:
-            c = t.tc.get_event()
-            if c == "":
-                sys.exit() # same as raise SystemExit()
-            elif c == "h":
-                a = t.array_from_text("a for small array")
-            elif c == "a":
-                a = numpy.array([[c] * columns for _ in range(rows)])
-            elif c == "s":
-                a = numpy.array([[c] * columns for _ in range(rows-1)])
-            elif c == "d":
-                a = numpy.array([[c] * columns for _ in range(rows+1)])
-            elif c == "f":
-                a = numpy.array([[c] * columns for _ in range(rows-2)])
-            elif c == "q":
-                a = numpy.array([[c] * columns for _ in range(1)])
-            elif c == "w":
-                a = numpy.array([[c] * columns for _ in range(1)])
-            elif c == "e":
-                a = numpy.array([[c] * columns for _ in range(1)])
-            elif isinstance(c, events.WindowChangeEvent):
-                a = t.array_from_text("window just changed to %d rows and %d columns" % (c.rows, c.columns))
-            elif c == "":
-                [t.out_stream.write('\n') for _ in range(rows)]
-                continue
-            else:
-                a = t.array_from_text("unknown command")
-            t.render_to_terminal(a)
+    with terminalcontrol.TCPartialler(sys.stdin, sys.stdout) as tc:
+        with Terminal(tc) as t:
+            rows, columns = t.tc.get_screen_size()
+            while True:
+                c = t.tc.get_event()
+                if c == "":
+                    sys.exit() # same as raise SystemExit()
+                elif c == "h":
+                    a = t.array_from_text("a for small array")
+                elif c == "a":
+                    a = numpy.array([[c] * columns for _ in range(rows)])
+                elif c == "s":
+                    a = numpy.array([[c] * columns for _ in range(rows-1)])
+                elif c == "d":
+                    a = numpy.array([[c] * columns for _ in range(rows+1)])
+                elif c == "f":
+                    a = numpy.array([[c] * columns for _ in range(rows-2)])
+                elif c == "q":
+                    a = numpy.array([[c] * columns for _ in range(1)])
+                elif c == "w":
+                    a = numpy.array([[c] * columns for _ in range(1)])
+                elif c == "e":
+                    a = numpy.array([[c] * columns for _ in range(1)])
+                elif isinstance(c, events.WindowChangeEvent):
+                    a = t.array_from_text("window just changed to %d rows and %d columns" % (c.rows, c.columns))
+                elif c == "":
+                    [t.tc.out_stream.write('\n') for _ in range(rows)]
+                    continue
+                else:
+                    a = t.array_from_text("unknown command")
+                t.render_to_terminal(a)
 
 def main():
     t = Terminal(sys.stdin, sys.stdout)
