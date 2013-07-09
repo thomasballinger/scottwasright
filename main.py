@@ -9,7 +9,7 @@ def main():
             r.width = columns
             r.height = rows
             while True:
-                result = r.process_event(t.get_event())
+                result = r.process_event(t.tc.get_event())
                 array, cursor_pos = r.paint()
                 scrolled = t.render_to_terminal(array, cursor_pos)
                 r.scroll_offset += scrolled

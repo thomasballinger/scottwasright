@@ -1,6 +1,5 @@
 """Terminal Wrapper which renders 2d arrays of characters to terminal"""
 
-import signal
 import tty
 import sys
 import os
@@ -15,8 +14,6 @@ import termformatconstants
 import events
 
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
-
-SIGWINCH_COUNTER = 0
 
 
 class Terminal(object):
@@ -54,11 +51,6 @@ class Terminal(object):
     def __enter__(self):
         self.original_stty = subprocess.check_output(['stty', '-g'])
         tty.setraw(self.in_stream)
-        def signal_handler(signum, frame):
-            global SIGWINCH_COUNTER
-            SIGWINCH_COUNTER += 1
-        signal.signal(signal.SIGWINCH, signal_handler)
-        self.sigwinch_counter = SIGWINCH_COUNTER - 1
         self.top_usable_row, _ = self.tc.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
         return self
@@ -116,28 +108,6 @@ class Terminal(object):
         self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
-    def get_event(self):
-        chars = []
-        while True:
-            logging.debug('checking if instance counter (%d) is less than global (%d) ' % (self.sigwinch_counter, SIGWINCH_COUNTER))
-            if self.sigwinch_counter < SIGWINCH_COUNTER:
-                self.sigwinch_counter = SIGWINCH_COUNTER
-                self.in_buffer = chars + self.in_buffer
-                return events.WindowChangeEvent(*self.tc.get_screen_size())
-            if chars and chars[0] != '\x1b':
-                return ''.join(chars)
-            if len(chars) == 2 and chars[1] != '[':
-                return ''.join(chars)
-            if len(chars) > 2 and chars[1] == '[' and chars[-1] not in tuple('1234567890;'):
-                return ''.join(chars)
-            if self.in_buffer:
-                chars.append(self.in_buffer.pop(0))
-                continue
-            try:
-                chars.append(self.in_stream.read(1))
-            except IOError:
-                continue
-
     def array_from_text(self, msg):
         rows, columns = self.tc.get_screen_size()
         a = numpy.array([[' ' for _ in range(columns)] for _ in range(rows)])
@@ -169,7 +139,7 @@ def test():
     with Terminal(sys.stdin, sys.stdout) as t:
         rows, columns = t.tc.get_screen_size()
         while True:
-            c = t.get_event()
+            c = t.tc.get_event()
             if c == "":
                 sys.exit() # same as raise SystemExit()
             elif c == "h":
@@ -206,7 +176,7 @@ def main():
     #for char in inputStream():
     t.render_to_terminal(a)
     while True:
-        c = t.get_event()
+        c = t.tc.get_event()
         if c == "":
             t.cleanup()
             sys.exit()

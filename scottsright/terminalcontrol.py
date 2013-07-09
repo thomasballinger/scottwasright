@@ -7,8 +7,14 @@ inspired by
 https://github.com/gwk/gloss/blob/master/python/gloss/io/cs.py
 """
 
+import signal
 import re
 import logging
+
+import events
+
+
+_SIGWINCH_COUNTER = 0
 
 QUERY_CURSOR_POSITION = "\x1b[6n"
 SCROLL_DOWN = "D"
@@ -34,10 +40,16 @@ class TCPartialler(object):
         self.in_stream_getter = in_stream_getter
         self.out_stream_getter = out_stream_getter
         self.in_buffer_getter = in_buffer_getter
+        self.sigwinch_counter = _SIGWINCH_COUNTER - 1
+        def signal_handler(signum, frame):
+            global _SIGWINCH_COUNTER
+            _SIGWINCH_COUNTER += 1
+        signal.signal(signal.SIGWINCH, signal_handler)
 
     in_stream = property(lambda self: self.in_stream_getter())
     out_stream = property(lambda self: self.out_stream_getter())
-    in_buffer = property(lambda self: self.in_buffer_getter())
+    def _in_buffer_setter(self, value): self.in_buffer_getter()[:] = value
+    in_buffer = property(lambda self: self.in_buffer_getter(), _in_buffer_setter)
 
     up, down, forward, back = [produce_cursor_sequence(c) for c in 'ABCD']
     fwd = forward
@@ -45,6 +57,30 @@ class TCPartialler(object):
     scroll_down = produce_simple_sequence(SCROLL_DOWN)
     erase_rest_of_line = produce_simple_sequence(ERASE_REST_OF_LINE)
     erase_line = produce_simple_sequence(ERASE_LINE)
+
+    def get_event(self):
+        """Blocks and returns the next event"""
+        #TODO make this cooler - generator? Trie?
+        chars = []
+        while True:
+            logging.debug('checking if instance counter (%d) is less than global (%d) ' % (self.sigwinch_counter, _SIGWINCH_COUNTER))
+            if self.sigwinch_counter < _SIGWINCH_COUNTER:
+                self.sigwinch_counter = _SIGWINCH_COUNTER
+                self.in_buffer = chars + self.in_buffer
+                return events.WindowChangeEvent(*self.get_screen_size())
+            if chars and chars[0] != '\x1b':
+                return ''.join(chars)
+            if len(chars) == 2 and chars[1] != '[':
+                return ''.join(chars)
+            if len(chars) > 2 and chars[1] == '[' and chars[-1] not in tuple('1234567890;'):
+                return ''.join(chars)
+            if self.in_buffer:
+                chars.append(self.in_buffer.pop(0))
+                continue
+            try:
+                chars.append(self.in_stream.read(1))
+            except IOError:
+                continue
 
     def retrying_read(self):
         while True:
