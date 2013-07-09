@@ -3,7 +3,6 @@
 import signal
 import tty
 import sys
-import re
 import os
 import subprocess
 import logging
@@ -47,13 +46,14 @@ class Terminal(object):
         #TODO does this actually get the terminal settings we need, or because it's a
         # subshell could it be completely wrong, and no better than hardcoding?
         logging.debug('-------initializing Terminal object %r------' % self)
-        self.original_stty = subprocess.check_output(['stty', '-g'])
-
-        tty.setraw(in_stream)
-        self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
+        self.in_buffer = []
         self.tc = terminalcontrol.TCPartialler(lambda: self.in_stream, lambda: self.out_stream, lambda: self.in_buffer)
+
+    def __enter__(self):
+        self.original_stty = subprocess.check_output(['stty', '-g'])
+        tty.setraw(self.in_stream)
         def signal_handler(signum, frame):
             global SIGWINCH_COUNTER
             SIGWINCH_COUNTER += 1
@@ -61,8 +61,6 @@ class Terminal(object):
         self.sigwinch_counter = SIGWINCH_COUNTER - 1
         self.top_usable_row, _ = self.tc.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
-
-    def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
