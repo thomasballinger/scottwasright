@@ -87,11 +87,11 @@ class Terminal(object):
             farray[:, :, 1] = 0 #termformatconstants.ON_GREEN
             farray[:, :, 2] = termformatconstants.BOLD
 
-        height, width = self.get_screen_size()
+        height, width = self.tc.get_screen_size()
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
-            self.set_screen_position((row, 1))
+            self.tc.set_screen_position((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
             self.tc.erase_rest_of_line()
         #logging.debug('array: '+repr(array))
@@ -100,7 +100,7 @@ class Terminal(object):
         rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
-            self.set_screen_position((row, 1))
+            self.tc.set_screen_position((row, 1))
             self.tc.erase_line()
         #logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
@@ -112,10 +112,10 @@ class Terminal(object):
             else:
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
-            self.set_screen_position((height, 1)) # since scrolling moves the cursor
+            self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
             self.out_stream.write(termformat.formatted_text(line, fline))
 
-        self.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
+        self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
     def get_event(self):
@@ -125,7 +125,7 @@ class Terminal(object):
             if self.sigwinch_counter < SIGWINCH_COUNTER:
                 self.sigwinch_counter = SIGWINCH_COUNTER
                 self.in_buffer = chars + self.in_buffer
-                return events.WindowChangeEvent(*self.get_screen_size())
+                return events.WindowChangeEvent(*self.tc.get_screen_size())
             if chars and chars[0] != '\x1b':
                 return ''.join(chars)
             if len(chars) == 2 and chars[1] != '[':
@@ -140,20 +140,8 @@ class Terminal(object):
             except IOError:
                 continue
 
-    def set_screen_position(self, (row, col)):
-        self.out_stream.write("[%d;%dH" % (row, col))
-
-    def get_screen_size(self):
-        #TODO generalize get_screen_position code and use it here instead
-        orig = self.tc.get_screen_position()
-        self.tc.fwd(10000) # 10000 is much larger than any reasonable terminal
-        self.tc.down(10000)
-        size = self.tc.get_screen_position()
-        self.set_screen_position(orig)
-        return size
-
     def array_from_text(self, msg):
-        rows, columns = self.get_screen_size()
+        rows, columns = self.tc.get_screen_size()
         a = numpy.array([[' ' for _ in range(columns)] for _ in range(rows)])
         i = 0
         for c in msg:
@@ -175,13 +163,13 @@ class Terminal(object):
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
-        self.set_screen_position((rows, 1))
+        self.tc.set_screen_position((rows, 1))
         os.system('stty '+self.original_stty)
         self.tc.erase_rest_of_line()
 
 def test():
     with Terminal(sys.stdin, sys.stdout) as t:
-        rows, columns = t.get_screen_size()
+        rows, columns = t.tc.get_screen_size()
         while True:
             c = t.get_event()
             if c == "":
@@ -213,7 +201,7 @@ def test():
 
 def main():
     t = Terminal(sys.stdin, sys.stdout)
-    rows, columns = t.get_screen_size()
+    rows, columns = t.tc.get_screen_size()
     import random
     goop = lambda l: [random.choice('aaabcddeeeefghiiijklmnooprssttuv        ') for _ in range(l)]
     a = numpy.array([goop(columns) for _ in range(rows)])

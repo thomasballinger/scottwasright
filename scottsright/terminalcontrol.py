@@ -69,6 +69,18 @@ def get_screen_position(in_stream, out_stream, in_buffer):
             in_buffer.extend(list(m.groupdict()['extra']))
             return (row, col)
 
+def set_screen_position((row, col), out_stream):
+    out_stream.write("[%d;%dH" % (row, col))
+
+def get_screen_size(in_stream, out_stream, in_buffer):
+    #TODO generalize get_screen_position code and use it here instead
+    orig = get_screen_position(in_stream, out_stream, in_buffer)
+    fwd(10000, out_stream) # 10000 is much larger than any reasonable terminal
+    down(10000, out_stream)
+    size = get_screen_position(in_stream, out_stream, in_buffer)
+    set_screen_position(orig, out_stream)
+    return size
+
 
 class TCPartialler(object):
     """Returns terminal control functions partialed for stream returned by

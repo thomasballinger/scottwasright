@@ -5,7 +5,7 @@ import sys
 def main():
     with Terminal(sys.stdin, sys.stdout) as t:
         with Repl() as r:
-            rows, columns = t.get_screen_size()
+            rows, columns = t.tc.get_screen_size()
             r.width = columns
             r.height = rows
             while True:
