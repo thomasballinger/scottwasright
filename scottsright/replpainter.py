@@ -1,6 +1,10 @@
 
 import numpy
+from autoextend import AutoExtending
 
+
+#TODO take rows and columns out of display linize to make all 
+#     this stuff stateless!
 
 class ReplPainter(object):
 

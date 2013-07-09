@@ -43,32 +43,28 @@ class Repl(object):
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
-        self.history = History()
-
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
         self.last_a_shape = (0,0)
         self.done = True
+        self.buffer = []
 
         self.indent_levels = [0]
 
+        self.history = History()
+        self.interp = code.InteractiveInterpreter()
+        self.completer = Autocomplete(self.interp.locals)
+        self.completer.autocomplete_mode = 'simple'
+        self.painter = replpainter.ReplPainter()
+
+    def __enter__(self):
         self.orig_stdin = sys.stdin
         self.orig_stdout = sys.stdout
         self.orig_stderr = sys.stderr
 
         sys.stdout = StringIO()
         sys.stderr = StringIO()
-
-        self.interp = code.InteractiveInterpreter()
-        self.buffer = []
-        self.completer = Autocomplete(self.interp.locals)
-        self.completer.autocomplete_mode = 'simple'
-
-        logging.debug("finish init")
-        self.painter = replpainter.ReplPainter()
-
-    def __enter__(self):
         return self
 
     def __exit__(self, *args):
@@ -246,6 +242,7 @@ class Repl(object):
             return a # short circuit, no room for infobox
 
         lines = self.painter.display_linize(self.current_display_line+'X', width)
+                                       # extra character for space for the cursor
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
 
