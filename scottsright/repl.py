@@ -237,17 +237,17 @@ class Repl(object):
     # * return an array of the width they were asked for
     # * return an array not larger than the height they were asked for
 
-    def paint_history(self, rows, columns):
+    def paint_history(self, rows, columns, display_lines):
         lines = []
-        for r, line in zip(range(rows), self.display_lines[-rows:]):
+        for r, line in zip(range(rows), display_lines[-rows:]):
             lines.append((line+' '*1000)[:columns])
         r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
         assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
         assert r.shape[1] <= columns
         return r
 
-    def paint_current_line(self, rows, columns):
-        lines = self.display_linize(self.current_display_line, columns)
+    def paint_current_line(self, rows, columns, current_display_line):
+        lines = self.display_linize(current_display_line, columns)
         return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
 
     def paint_infobox(self, rows, columns, msg=None):
@@ -273,10 +273,10 @@ class Repl(object):
         a = AutoExtending(0, width)
         current_line_start_row = len(self.display_lines) - self.scroll_offset
 
-        history = self.paint_history(current_line_start_row, width)
+        history = self.paint_history(current_line_start_row, width, self.display_lines)
         a[:history.shape[0],:history.shape[1]] = history
 
-        current_line = self.paint_current_line(min_height, width)
+        current_line = self.paint_current_line(min_height, width, self.current_display_line)
         a[current_line_start_row:current_line_start_row + current_line.shape[0],
             0:current_line.shape[1]] = current_line
 
