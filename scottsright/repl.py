@@ -5,9 +5,9 @@ import logging
 import code
 from cStringIO import StringIO
 
-import numpy
 from bpython.autocomplete import Autocomplete
 
+import replpainter
 import events
 from autoextend import AutoExtending
 from manual_readline import char_sequences as rl_char_sequences
@@ -38,6 +38,7 @@ class Repl(object):
 """
 
     def __init__(self):
+        logging.debug("starting init")
         self.current_line = ''
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
@@ -52,9 +53,6 @@ class Repl(object):
 
         self.indent_levels = [0]
 
-        self.width = None # the width to which to wrap the current line
-        self.height = None # the width to which to wrap the current line
-
         self.orig_stdin = sys.stdin
         self.orig_stdout = sys.stdout
         self.orig_stderr = sys.stderr
@@ -67,6 +65,9 @@ class Repl(object):
         self.completer = Autocomplete(self.interp.locals)
         self.completer.autocomplete_mode = 'simple'
 
+        logging.debug("finish init")
+        self.painter = replpainter.ReplPainter()
+
     def __enter__(self):
         return self
 
@@ -74,11 +75,14 @@ class Repl(object):
         self.cleanup()
 
     def cleanup(self):
+        sys.stderr.seek(0)
+        err = sys.stderr.read()
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
+        print err
 
     def dumb_print_output(self):
-        rows, columns = self.height, self.width
+        rows, columns = self.painter.height, self.painter.width
         a, cpos = self.paint()
         a[cpos[0], cpos[1]] = '~'
         def my_print(*messages):
@@ -118,12 +122,12 @@ class Repl(object):
     def on_return(self):
         self.cursor_offset_in_line = 0
         self.history.on_enter(self.current_line)
-        self.display_lines.extend(self.display_linize(self.current_display_line, self.width))
+        self.display_lines.extend(self.painter.display_linize(self.current_display_line))
         output, err, self.done, indent = self.push(self.current_line)
         if output:
-            self.display_lines.extend(sum([self.display_linize(line, self.width) for line in output.split('\n')], []))
+            self.display_lines.extend(sum([self.painter.display_linize(line) for line in output.split('\n')], []))
         if err:
-            self.display_lines.extend(sum([self.display_linize(line, self.width) for line in err.split('\n')], []))
+            self.display_lines.extend(sum([self.painter.display_linize(line) for line in err.split('\n')], []))
         self.current_line = ' '*indent
         self.cursor_offset_in_line = len(self.current_line)
 
@@ -140,7 +144,7 @@ class Repl(object):
         logging.debug("processing event %r", e)
         if isinstance(e, events.WindowChangeEvent):
             logging.debug('window change to %d %d', e.width, e.height)
-            self.width, self.height = e.width, e.height
+            self.painter.width, self.painter.height = e.width, e.height
             return
         self.last_key_pressed = e
         if e in rl_char_sequences:
@@ -225,72 +229,32 @@ class Repl(object):
                 self.indent_levels = [0]
             return (out[:-1], err[:-1], True, self.indent_levels[-1])
 
-    def display_linize(self, msg, columns):
-        display_lines = ([msg[start:end]
-                            for start, end in zip(
-                                range(0, len(msg), columns),
-                                range(columns, len(msg)+columns, columns))]
-                        if msg else [''])
-        return display_lines
-
-    # All paint functions should
-    # * return an array of the width they were asked for
-    # * return an array not larger than the height they were asked for
-
-    def paint_history(self, rows, columns, display_lines):
-        lines = []
-        for r, line in zip(range(rows), display_lines[-rows:]):
-            lines.append((line+' '*1000)[:columns])
-        r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
-        assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
-        assert r.shape[1] <= columns
-        return r
-
-    def paint_current_line(self, rows, columns, current_display_line):
-        lines = self.display_linize(current_display_line, columns)
-        return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
-
-    def paint_infobox(self, rows, columns, msg=None):
-        if not (rows and columns):
-            return numpy.zeros((0,0), dtype=numpy.character)
-        if msg is None:
-            lines = self.info(columns-2, rows).split('\n')
-        else:
-            lines = msg.split('\n')
-        width = min(columns - 2, max([len(line) for line in lines]))
-        output_lines = []
-        output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
-        for line in lines:
-            output_lines.extend(self.display_linize('|'+line+' '*(width - len(line))+'|', columns))
-        output_lines.extend(self.display_linize('+'+'-'*width+'+', columns))
-        r = numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
-        assert len(r.shape) == 2
-        return r[:rows-1, :]
-
     def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
-        width, min_height = self.width, self.height
+        width, min_height = self.painter.width, self.painter.height
         a = AutoExtending(0, width)
         current_line_start_row = len(self.display_lines) - self.scroll_offset
 
-        history = self.paint_history(current_line_start_row, width, self.display_lines)
+        history = self.painter.paint_history(current_line_start_row, width, self.display_lines)
         a[:history.shape[0],:history.shape[1]] = history
 
-        current_line = self.paint_current_line(min_height, width, self.current_display_line)
+        current_line = self.painter.paint_current_line(min_height, width, self.current_display_line)
         a[current_line_start_row:current_line_start_row + current_line.shape[0],
             0:current_line.shape[1]] = current_line
 
         if current_line.shape[0] > min_height:
             return a # short circuit, no room for infobox
 
-        lines = self.display_linize(self.current_display_line+'X', width)
+        lines = self.painter.display_linize(self.current_display_line+'X', width)
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
 
         if self.current_word and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
-            infobox = self.paint_infobox(max(visible_space_above, visible_space_below), width)
+            info_max_rows = max(visible_space_above, visible_space_below)
+            info = self.info(width-2, info_max_rows)
+            infobox = self.painter.paint_infobox(info_max_rows, width, info)
 
             if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
@@ -340,8 +304,8 @@ class Repl(object):
 
 def test():
     with Repl() as r:
-        r.width = 50
-        r.height = 20
+        r.painter.width = 50
+        r.painter.height = 20
         while True:
             scrolled = r.dumb_print_output()
             r.scroll_offset += scrolled
