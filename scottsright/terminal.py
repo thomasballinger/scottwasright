@@ -53,15 +53,14 @@ class Terminal(object):
         self.in_buffer = []
         self.in_stream = in_stream
         self.out_stream = out_stream
-        self.tc = terminalcontrol.TCPartialler(lambda: self.in_stream, lambda: self.out_stream)
+        self.tc = terminalcontrol.TCPartialler(lambda: self.in_stream, lambda: self.out_stream, lambda: self.in_buffer)
         def signal_handler(signum, frame):
             global SIGWINCH_COUNTER
             SIGWINCH_COUNTER += 1
         signal.signal(signal.SIGWINCH, signal_handler)
         self.sigwinch_counter = SIGWINCH_COUNTER - 1
-        self.top_usable_row, _ = self.get_screen_position()
+        self.top_usable_row, _ = self.tc.get_screen_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
-
 
     def __enter__(self):
         return self
@@ -141,29 +140,15 @@ class Terminal(object):
             except IOError:
                 continue
 
-    def get_screen_position(self):
-        """Returns the terminal (row, column) of the cursor"""
-        self.tc.query_cursor_position()
-        resp = ''
-        while True:
-            c = self.tc.retrying_read()
-            resp += c
-            m = re.search('(?P<extra>.*)\x1b\[(?P<row>\\d+);(?P<column>\\d+)R', resp)
-            if m:
-                row = int(m.groupdict()['row'])
-                col = int(m.groupdict()['column'])
-                self.in_buffer.extend(list(m.groupdict()['extra']))
-                return (row, col)
-
     def set_screen_position(self, (row, col)):
         self.out_stream.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
         #TODO generalize get_screen_position code and use it here instead
-        orig = self.get_screen_position()
+        orig = self.tc.get_screen_position()
         self.tc.fwd(10000) # 10000 is much larger than any reasonable terminal
         self.tc.down(10000)
-        size = self.get_screen_position()
+        size = self.tc.get_screen_position()
         self.set_screen_position(orig)
         return size
 
@@ -186,7 +171,7 @@ class Terminal(object):
 
     def cleanup(self):
         self.out_stream.write(terminalcontrol.SCROLL_DOWN)
-        rows, _ = self.get_screen_position()
+        rows, _ = self.tc.get_screen_position()
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
