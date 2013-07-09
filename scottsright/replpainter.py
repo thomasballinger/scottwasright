@@ -1,10 +1,10 @@
 
 import numpy
-from autoextend import AutoExtending
-
 
 #TODO take rows and columns out of display linize to make all 
-#     this stuff stateless!
+#     this stuff stateless! No need for an object!
+#
+#TODO take the boring parts of repl.paint out into here?
 
 class ReplPainter(object):
 
@@ -16,7 +16,7 @@ class ReplPainter(object):
         self.width = columns
         self.height = rows
 
-    def display_linize(self, msg, columns=None):
+    def display_linize(self, msg, columns):
         if columns == None:
             columns = self.width
         display_lines = ([msg[start:end]

@@ -118,12 +118,12 @@ class Repl(object):
     def on_return(self):
         self.cursor_offset_in_line = 0
         self.history.on_enter(self.current_line)
-        self.display_lines.extend(self.painter.display_linize(self.current_display_line))
+        self.display_lines.extend(self.painter.display_linize(self.current_display_line, self.painter.width))
         output, err, self.done, indent = self.push(self.current_line)
         if output:
-            self.display_lines.extend(sum([self.painter.display_linize(line) for line in output.split('\n')], []))
+            self.display_lines.extend(sum([self.painter.display_linize(line, self.painter.width) for line in output.split('\n')], []))
         if err:
-            self.display_lines.extend(sum([self.painter.display_linize(line) for line in err.split('\n')], []))
+            self.display_lines.extend(sum([self.painter.display_linize(line, self.painter.width) for line in err.split('\n')], []))
         self.current_line = ' '*indent
         self.cursor_offset_in_line = len(self.current_line)
 
