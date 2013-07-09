@@ -12,7 +12,9 @@ class WindowChangeEvent(Event):
         return "<WindowChangeEvent (%d, %d)>" % (self.rows, self.columns)
 
 class Keypress(Event):
-    def __init__(self, seq):
+    __slots__ = ['name', 'seq']
+    def __init__(self, name, seq):
         self.seq = seq
+        self.name = name
     def __repr__(self, seq):
         return "<Key %r>" % self.seq

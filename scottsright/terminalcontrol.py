@@ -26,9 +26,10 @@ CURSOR_UP, CURSOR_DOWN, CURSOR_FORWARD, CURSOR_BACK = ["[%s" for char in 'ABCD'
 ERASE_REST_OF_LINE = "[K"
 ERASE_LINE = "[2K"
 
-def produce_simple_sequence(char):
-    def func(self):
-        self.out_stream.write(char)
+
+def produce_simple_sequence(seq):
+    def func(out_stream):
+        out_stream.write(seq)
     return func
 
 def produce_cursor_sequence(char):
@@ -99,7 +100,10 @@ class TCPartialler(object):
             except IOError:
                 logging.debug('read interrupted, retrying')
 
-    def get_screen_position(self):
+    def write(self, msg):
+        self.out_stream.write(msg)
+
+    def get_cursor_position(self):
         """Returns the terminal (row, column) of the cursor"""
         self.query_cursor_position()
         resp = ''
@@ -117,22 +121,33 @@ class TCPartialler(object):
         self.out_stream.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
-        #TODO generalize get_screen_position code and use it here instead
-        orig = self.get_screen_position()
+        #TODO generalize get_cursor_position code and use it here instead
+        orig = self.get_cursor_position()
         self.fwd(10000) # 10000 is much larger than any reasonable terminal
         self.down(10000)
-        size = self.get_screen_position()
+        size = self.get_cursor_position()
         self.set_screen_position(orig)
         return size
 
-if __name__ == '__main__':
-    for k in globals().keys():
-        print k
+def test():
+    with TCPartialler() as tc:
+        pos = str(tc.get_cursor_position())
+        tc.write(pos)
+        tc.back(len(pos))
+        tc.scroll_down()
+        tc.write('asdf')
+        tc.back(4)
+        tc.scroll_down()
+        tc.write('asdf')
+        tc.back(4)
+        while True:
+            e = tc.get_event()
+            tc.write(repr(e))
+            tc.scroll_down()
+            tc.back(len(repr(e)))
+            if e == '':
+                sys.exit()
 
-    import cStringIO
-    fake = cStringIO.StringIO()
-    t = TCPartialler(lambda: fake)
-    t.scroll_down()
-    fake.seek(0)
-    print repr(fake.read())
+if __name__ == '__main__':
+    test()
 

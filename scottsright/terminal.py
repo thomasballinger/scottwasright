@@ -1,9 +1,7 @@
 """Terminal Wrapper which renders 2d arrays of characters to terminal"""
 
-import tty
 import sys
 import os
-import subprocess
 import logging
 
 import numpy
@@ -17,36 +15,33 @@ logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
 
 
 class Terminal(object):
-    """
-
-    Renders 2D arrays of characters and cursor position
-
-    outputs:
-     -number of times scrolled
-     -initial position of cursor on the screen
-
-    TODO: when less than whole screen owned, deal with that:
-        -render the top of the screen at the first clear row
-        -scroll down before rendering as necessary
-
-    """
+    """ Renders 2D arrays of characters and cursor position """
+    #TODO: when less than whole screen owned, deal with that:
+    #    -render the top of the screen at the first clear row
+    #    -scroll down before rendering as necessary
     def __init__(self, tc):
         """
-
-        in_stream must respond work with tty.setraw(in_stream), and in_stream.read(1)
-        out_stream must respond to out_stream.write('some message')
+        tc expected to have must have methods:
+            get_cursor_position()
+            get_screen_size() -> (row, col)
+            set_screen_position((row, column))
+            write(msg)
+            scroll_down()
+            erase_line()
+            down, up, left, back()
+            get_event() -> 'c' | events.WindowChangeEvent(rows, columns)
         """
         logging.debug('-------initializing Terminal object %r------' % self)
         self.tc = tc
 
     def __enter__(self):
-        self.top_usable_row, _ = self.tc.get_screen_position()
+        self.top_usable_row, _ = self.tc.get_cursor_position()
         logging.debug('initial top_usable_row: %d' % self.top_usable_row)
         return self
 
     def __exit__(self, type, value, traceback):
-        self.tc.out_stream.write(terminalcontrol.SCROLL_DOWN)
-        rows, _ = self.tc.get_screen_position()
+        self.tc.scroll_down()
+        rows, _ = self.tc.get_cursor_position()
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
@@ -56,6 +51,8 @@ class Terminal(object):
     def render_to_terminal(self, array, cursor_pos=(0,0), farray=None):
         """Renders array to terminal, returns the number of lines
             scrolled offscreen
+        outputs:
+         -number of times scrolled
 
         If array received is of width too small, render it anyway
         if array received is of width too large, render it anyway
@@ -77,17 +74,14 @@ class Terminal(object):
         shared = min(len(array), len(rows_for_use))
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
             self.tc.set_screen_position((row, 1))
-            self.tc.out_stream.write(termformat.formatted_text(line, fline))
+            self.tc.write(termformat.formatted_text(line, fline))
             self.tc.erase_rest_of_line()
-        #logging.debug('array: '+repr(array))
-        #logging.debug('shared: '+repr(shared))
         rest_of_lines = array[shared:]
         rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
             self.tc.set_screen_position((row, 1))
             self.tc.erase_line()
-        #logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
         for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
             logging.debug('sending scroll down message')
@@ -98,7 +92,7 @@ class Terminal(object):
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
             self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
-            self.tc.out_stream.write(termformat.formatted_text(line, fline))
+            self.tc.write(termformat.formatted_text(line, fline))
 
         self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
@@ -147,7 +141,7 @@ def test():
                 elif isinstance(c, events.WindowChangeEvent):
                     a = t.array_from_text("window just changed to %d rows and %d columns" % (c.rows, c.columns))
                 elif c == "":
-                    [t.tc.out_stream.write('\n') for _ in range(rows)]
+                    [t.tc.write('\n') for _ in range(rows)]
                     continue
                 else:
                     a = t.array_from_text("unknown command")
@@ -159,7 +153,6 @@ def main():
     import random
     goop = lambda l: [random.choice('aaabcddeeeefghiiijklmnooprssttuv        ') for _ in range(l)]
     a = numpy.array([goop(columns) for _ in range(rows)])
-    #for char in inputStream():
     t.render_to_terminal(a)
     while True:
         c = t.tc.get_event()
