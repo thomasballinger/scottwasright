@@ -70,14 +70,8 @@ class Repl(object):
         return self
 
     def __exit__(self, *args):
-        self.cleanup()
-
-    def cleanup(self):
-        sys.stderr.seek(0)
-        err = sys.stderr.read()
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
-        print err
 
     def dumb_print_output(self):
         rows, columns = self.height, self.width
