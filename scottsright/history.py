@@ -22,7 +22,7 @@ class History(object):
         self.logical_lines = []
         self.history_index = 0
         self.filter_line = ''
-        self.char_sequences = {seq: getattr(self, handler) 
+        self.char_sequences = {seq: getattr(self, handler)
                                for seq, handler in CHAR_SEQUENCES.items()}
 
     def use_history_index(self):

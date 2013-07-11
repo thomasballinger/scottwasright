@@ -172,10 +172,9 @@ class Repl(object):
 
     @current_word.setter
     def current_word(self, value):
-        # current word means word cursor is at the end of, so delete from cursor back to [ .]
-        assert self.current_word
+        # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
         pos = self.cursor_offset_in_line - 1
-        while pos > -1 and self.current_line[pos] not in tuple(' .:()'):
+        while pos > -1 and self.current_line[pos] not in tuple(' :()'):
             pos -= 1
         start = pos + 1; del pos
         self.current_line = self.current_line[:start] + value + self.current_line[self.cursor_offset_in_line:]
