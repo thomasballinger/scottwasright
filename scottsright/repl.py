@@ -7,6 +7,7 @@ from cStringIO import StringIO
 
 from bpython.autocomplete import Autocomplete
 
+import monkeypatch_site
 import replpainter as paint
 import events
 from autoextend import AutoExtending
