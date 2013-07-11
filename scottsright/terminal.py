@@ -40,12 +40,15 @@ class Terminal(object):
         return self
 
     def __exit__(self, type, value, traceback):
+        # We may have been killed by stderr being closed, so we
+        # might not be able to query the cursor position.
         self.tc.scroll_down()
-        rows, _ = self.tc.get_cursor_position()
+        row, _ = self.tc.get_cursor_position()
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
-        self.tc.set_screen_position((rows, 1))
+            self.tc.up()
+        self.tc.set_screen_position((row, 1))
         self.tc.erase_rest_of_line()
 
     def render_to_terminal(self, array, cursor_pos=(0,0), farray=None):
