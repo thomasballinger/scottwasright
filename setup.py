@@ -8,4 +8,5 @@ setup(name='scottsright',
       author_email='thomasballinger@gmail.com',
       license='MIT',
       packages=['scottsright'],
+      scripts=['tpy'],
       zip_safe=False)
