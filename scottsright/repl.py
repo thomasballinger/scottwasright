@@ -147,6 +147,7 @@ class Repl(object):
         elif e == "":
             raise KeyboardInterrupt()
         elif e == "":
+            logging.debug('ctrl-d; returning true')
             return True
         elif e == '': # backspace
             self.on_backspace()
