@@ -74,7 +74,7 @@ class TCPartialler(object):
         #TODO make this cooler - generator? Trie?
         chars = []
         while True:
-            logging.debug('checking if instance counter (%d) is less than global (%d) ' % (self.sigwinch_counter, _SIGWINCH_COUNTER))
+            #logging.debug('checking if instance counter (%d) is less than global (%d) ' % (self.sigwinch_counter, _SIGWINCH_COUNTER))
             if self.sigwinch_counter < _SIGWINCH_COUNTER:
                 self.sigwinch_counter = _SIGWINCH_COUNTER
                 self.in_buffer = chars + self.in_buffer

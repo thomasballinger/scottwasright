@@ -44,6 +44,8 @@ class Repl(object):
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
+        self.logical_lines = [] # this is every line that's been executed;
+                                # it gets smaller on rewind
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
@@ -112,8 +114,9 @@ class Repl(object):
             self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
                                  self.current_line[self.cursor_offset_in_line+1:])
 
-    def on_return(self):
+    def on_enter(self):
         self.cursor_offset_in_line = 0
+        self.logical_lines.append(self.current_line)
         self.history.on_enter(self.current_line)
         self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
         output, err, self.done, indent = self.push(self.current_line)
@@ -132,9 +135,24 @@ class Repl(object):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
+    def on_rewind(self):
+        just_rewound = self.logical_lines.pop()
+        old_logical_lines = self.logical_lines
+        self.logical_lines = []
+        self.display_lines = []
+        self.history.clear_history_before_rewind()
+        self.interp = code.InteractiveInterpreter()
+        self.buffer = []
+        for line in old_logical_lines:
+            self.current_line = line
+            self.on_enter()
+        self.history.set_just_rewound(just_rewound)
+        self.cursor_offset_in_line = 0
+        self.current_line = ''
+
     def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
-        logging.debug("processing event %r", e)
+        #logging.debug("processing event %r", e)
         if isinstance(e, events.WindowChangeEvent):
             logging.debug('window change to %d %d', e.width, e.height)
             self.width, self.height = e.width, e.height
@@ -152,11 +170,13 @@ class Repl(object):
         elif e == '': # backspace
             self.on_backspace()
         elif e in ("\n", "\r"):
-            self.on_return()
+            self.on_enter()
         elif e == "" or e == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif e == '\t': #tab
             self.on_tab()
+        elif e == '':
+            self.on_rewind()
         else:
             self.add_normal_character(e)
 
@@ -207,6 +227,7 @@ class Repl(object):
             self.indent_levels.pop()
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
+        logging.debug('running %r in interpreter', self.buffer)
         unfinished = self.interp.runsource('\n'.join(self.buffer))
         sys.stdout.seek(out_spot)
         sys.stderr.seek(err_spot)
