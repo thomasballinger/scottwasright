@@ -141,8 +141,13 @@ class Repl(object):
         self.logical_lines = []
         self.display_lines = []
         self.history.clear_history_before_rewind()
+
+        self.done = True
         self.interp = code.InteractiveInterpreter()
+        self.completer = Autocomplete(self.interp.locals)
+        self.completer.autocomplete_mode = 'simple'
         self.buffer = []
+
         for line in old_logical_lines:
             self.current_line = line
             self.on_enter()
