@@ -136,6 +136,8 @@ class Repl(object):
                 self.add_normal_character(' ')
 
     def on_rewind(self):
+        if len(self.logical_lines) < 1:
+            return
         just_rewound = self.logical_lines.pop()
         old_logical_lines = self.logical_lines
         self.logical_lines = []
