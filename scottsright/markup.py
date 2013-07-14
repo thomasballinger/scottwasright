@@ -1,34 +1,49 @@
-"""Marked up text for the terminal
+r"""Marked up text for the terminal
+
+text should only be marked up with characteristics that don't change the number
+of characters (uppercase is fine - spaces between characters is not)
 
 Ideally these objects can be processed like normal strings
 
-str: printable text in terminal
+Limited to 
+
+Use something like colorama for Windows output? Skip for now
+
+Similar to https://github.com/kennethreitz/clint/blob/master/clint/textui/colored.py
+
+str: printable (and marked up) text in terminal - minimal amount of markup?
 repl: representation of tree structure
 getitem: array and farray representation
+len: length of version
+iteration?
 
-
+Buildable from escape codes
 Buildable from array and farry
 Buildable from simple init
 Buildable by combining into tree structure
-Buildable from escape codes?
 
 which is the true internal representation?
 Probably the array one, can build a tree for repr with cool tree combinators!
+No, probably the terminal escape one
 
 
->>> r = Red('error message')
+What to do on unclosed (uncleared) escape code input?
+Close it! Shouldn't be called on just an initial section!
+
+
+>>> r = Fmt(r'ab\x1b[31mcd\x1b[0m')
 >>> r
 Red("error message")
 >>> c = r + Blue("!")
 >>> c
 Fmt(Red("error message"), Blue("!"))
 >>> str(c)
-'h\x1b[31me\x1b[0m\x1b[32mll\x1b[0mo!'
 """
+
 import termformat
 import termformatconstants
 
-class FormattedLine(object):
+class Fmt(object):
     """
     text with formatting information
 
@@ -47,6 +62,7 @@ class FormattedLine(object):
         return 1
 
 class CompoundFormattedLine(FormattedLine):
+    pass
 
 
 
