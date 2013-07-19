@@ -6,6 +6,8 @@ import code
 from cStringIO import StringIO
 
 from bpython.autocomplete import Autocomplete
+from bpython.repl import Repl as BpythonRepl
+from bpython.config import Struct, loadini, default_config_path
 
 import monkeypatch_site
 import replpainter as paint
@@ -21,7 +23,7 @@ INDENT_AMOUNT = 4
 
 logging.basicConfig(level=logging.DEBUG, filename='repl.log')
 
-class Repl(object):
+class Repl(BpythonRepl):
     """
 
     takes in:
@@ -40,8 +42,13 @@ class Repl(object):
 """
 
     def __init__(self):
+        logging.debug("starting parent init")
+        self.interp = code.InteractiveInterpreter()
+        config = Struct()
+        loadini(config, default_config_path())
+        super(Repl, self).__init__(self.interp, config)
         logging.debug("starting init")
-        self.current_line = ''
+        self._current_line = ''
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
@@ -57,12 +64,15 @@ class Repl(object):
         self.indent_levels = [0]
 
         self.history = History()
-        self.interp = code.InteractiveInterpreter()
         self.completer = Autocomplete(self.interp.locals)
         self.completer.autocomplete_mode = 'simple'
 
         self.width = None
         self.height = None
+
+    ## Required by bpython.repl.Repl
+    def current_line(self):
+        return self._current_line
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
@@ -101,40 +111,40 @@ class Repl(object):
 
     @property
     def current_display_line(self):
-        return (">>> " if self.done else "... ") + self.current_line
+        return (self.ps1 if self.done else self.ps2) + self._current_line
 
     def on_backspace(self):
-        if 0 < self.cursor_offset_in_line == len(self.current_line) and self.current_line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+        if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
             self.cursor_offset_in_line = self.indent_levels[-1]
-            self.current_line = self.current_line[:self.indent_levels[-1]]
-        elif self.cursor_offset_in_line == len(self.current_line) and self.current_line.endswith(' '*INDENT_AMOUNT):
+            self._current_line = self._current_line[:self.indent_levels[-1]]
+        elif self.cursor_offset_in_line == len(self._current_line) and self._current_line.endswith(' '*INDENT_AMOUNT):
             #dumber version
             self.cursor_offset_in_line = self.cursor_offset_in_line - 4
-            self.current_line = self.current_line[:-4]
+            self._current_line = self._current_line[:-4]
         else:
             self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-            self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
-                                 self.current_line[self.cursor_offset_in_line+1:])
+            self._current_line = (self._current_line[:max(0, self.cursor_offset_in_line)] +
+                                 self._current_line[self.cursor_offset_in_line+1:])
 
     def on_enter(self):
         self.cursor_offset_in_line = 0
-        self.logical_lines.append(self.current_line)
-        self.history.on_enter(self.current_line)
+        self.logical_lines.append(self._current_line)
+        self.history.on_enter(self._current_line)
         self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
-        output, err, self.done, indent = self.push(self.current_line)
+        output, err, self.done, indent = self.push(self._current_line)
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
         if err:
             self.display_lines.extend([fmtstr(line, 'red') for line in sum([paint.display_linize(line, self.width) for line in err.split('\n')], [])])
-        self.current_line = ' '*indent
-        self.cursor_offset_in_line = len(self.current_line)
+        self._current_line = ' '*indent
+        self.cursor_offset_in_line = len(self._current_line)
 
     def on_tab(self):
         cw = self.current_word
         if cw and self.completer.matches:
             self.current_word = self.completer.matches[0]
-        elif self.current_line.count(' ') == len(self.current_line):
+        elif self._current_line.count(' ') == len(self._current_line):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
@@ -154,11 +164,11 @@ class Repl(object):
         self.buffer = []
 
         for line in old_logical_lines:
-            self.current_line = line
+            self._current_line = line
             self.on_enter()
         self.history.set_just_rewound(just_rewound)
         self.cursor_offset_in_line = 0
-        self.current_line = ''
+        self._current_line = ''
 
     def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
@@ -169,9 +179,9 @@ class Repl(object):
             return
         self.last_key_pressed = e
         if e in rl_char_sequences:
-            self.cursor_offset_in_line, self.current_line = rl_char_sequences[e](self.cursor_offset_in_line, self.current_line)
+            self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
         elif e in self.history.char_sequences:
-            self.cursor_offset_in_line, self.current_line = self.history.char_sequences[e](self.cursor_offset_in_line, self.current_line)
+            self.cursor_offset_in_line, self._current_line = self.history.char_sequences[e](self.cursor_offset_in_line, self._current_line)
         elif e == "":
             raise KeyboardInterrupt()
         elif e == "":
@@ -192,7 +202,7 @@ class Repl(object):
 
     @property
     def current_word(self):
-        words = re.split(r'([\w_][\w0-9._]*)', self.current_line)
+        words = re.split(r'([\w_][\w0-9._]*)', self._current_line)
         chars = 0
         cw = None
         for word in words:
@@ -206,18 +216,18 @@ class Repl(object):
     def current_word(self, value):
         # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
         pos = self.cursor_offset_in_line - 1
-        while pos > -1 and self.current_line[pos] not in tuple(' :()'):
+        while pos > -1 and self._current_line[pos] not in tuple(' :()'):
             pos -= 1
         start = pos + 1; del pos
-        self.current_line = self.current_line[:start] + value + self.current_line[self.cursor_offset_in_line:]
+        self._current_line = self._current_line[:start] + value + self._current_line[self.cursor_offset_in_line:]
         self.cursor_offset_in_line = start + len(value)
 
     def add_normal_character(self, char):
-        self.current_line = (self.current_line[:self.cursor_offset_in_line] +
+        self._current_line = (self._current_line[:self.cursor_offset_in_line] +
                              char +
-                             self.current_line[self.cursor_offset_in_line:])
+                             self._current_line[self.cursor_offset_in_line:])
         self.cursor_offset_in_line += 1
-        self.cursor_offset_in_line, self.current_line = substitute_abbreviations(self.cursor_offset_in_line, self.current_line)
+        self.cursor_offset_in_line, self._current_line = substitute_abbreviations(self.cursor_offset_in_line, self._current_line)
         #TODO deal with characters that take up more than one space? do we care?
 
     def push(self, line):
@@ -231,7 +241,7 @@ class Repl(object):
 
         if line.endswith(':'):
             self.indent_levels.append(indent + INDENT_AMOUNT)
-        elif line and line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+        elif line and line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
         elif line and ':' not in line and line.strip().startswith(('return', 'pass', 'raise', 'yield')):
             self.indent_levels.pop()
@@ -262,17 +272,17 @@ class Repl(object):
         history = paint.paint_history(current_line_start_row, width, self.display_lines)
         arr[:history.shape[0],:history.shape[1]] = history
 
-        current_line = paint.paint_current_line(min_height, width, self.current_display_line)
-        arr[current_line_start_row:current_line_start_row + current_line.shape[0],
-            0:current_line.shape[1]] = current_line
+        _current_line = paint.paint_current_line(min_height, width, self.current_display_line)
+        arr[current_line_start_row:current_line_start_row + _current_line.shape[0],
+            0:_current_line.shape[1]] = _current_line
 
-        if current_line.shape[0] > min_height:
+        if _current_line.shape[0] > min_height:
             return arr, (0, 0) # short circuit, no room for infobox
 
         lines = paint.display_linize(self.current_display_line+'X', width)
                                        # extra character for space for the cursor
         cursor_row = current_line_start_row + len(lines) - 1
-        cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
+        cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
         if self.current_word and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
@@ -328,7 +338,7 @@ class Repl(object):
                      for i in range((len(matches) / words_per_line) + 1)])
                 return str(cw) + '\n' + suggestions
         else:
-            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
+            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self._current_line))
 
 def test():
     with Repl() as r:
