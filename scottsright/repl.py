@@ -15,7 +15,6 @@ import events
 from  fmtstr.fsarray import FSArray
 from fmtstr.fmtstr import fmtstr
 from manual_readline import char_sequences as rl_char_sequences
-from history import History
 from abbreviate import substitute_abbreviations
 
 INFOBOX_ONLY_BELOW = True
@@ -42,29 +41,27 @@ class Repl(BpythonRepl):
 """
 
     def __init__(self):
-        logging.debug("starting parent init")
-        self.interp = code.InteractiveInterpreter()
+        logging.debug("starting init")
+        interp = code.InteractiveInterpreter()
         config = Struct()
         loadini(config, default_config_path())
-        super(Repl, self).__init__(self.interp, config)
-        logging.debug("starting init")
+        logging.debug("starting parent init")
+        super(Repl, self).__init__(interp, config)
+
         self._current_line = ''
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
-        self.logical_lines = [] # this is every line that's been executed;
+        self.history = [] # this is every line that's been executed;
                                 # it gets smaller on rewind
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
         self.last_a_shape = (0,0)
         self.done = True
-        self.buffer = []
 
         self.indent_levels = [0]
 
-        self.history = History()
-        self.completer = Autocomplete(self.interp.locals)
         self.completer.autocomplete_mode = 'simple'
 
         self.width = None
@@ -73,6 +70,10 @@ class Repl(BpythonRepl):
     ## Required by bpython.repl.Repl
     def current_line(self):
         return self._current_line
+    def echo(self, msg):
+        logging.debug("echo called with %r" % msg)
+    def cw(self):
+        return self.current_word
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
@@ -128,9 +129,8 @@ class Repl(BpythonRepl):
                                  self._current_line[self.cursor_offset_in_line+1:])
 
     def on_enter(self):
-        self.cursor_offset_in_line = 0
-        self.logical_lines.append(self._current_line)
-        self.history.on_enter(self._current_line)
+        self.history.append(self._current_line)
+        self.rl_history.append(self._current_line)
         self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
         output, err, self.done, indent = self.push(self._current_line)
         if output:
@@ -148,25 +148,22 @@ class Repl(BpythonRepl):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
-    def on_rewind(self):
-        if len(self.logical_lines) < 1:
-            return
-        just_rewound = self.logical_lines.pop()
-        old_logical_lines = self.logical_lines
-        self.logical_lines = []
+    def reevaluate(self):
+        #TODO other implementations have a enter no-history method, could do
+        # that instead of clearing history and getting it rewritten
+        old_logical_lines = self.history
+        self.history = []
         self.display_lines = []
-        self.history.clear_history_before_rewind()
 
-        self.done = True
+        self.done = True # this keeps the first prompt correct
         self.interp = code.InteractiveInterpreter()
-        self.completer = Autocomplete(self.interp.locals)
+        self.completer = Autocomplete(self.interp.locals, self.config)
         self.completer.autocomplete_mode = 'simple'
         self.buffer = []
 
         for line in old_logical_lines:
             self._current_line = line
             self.on_enter()
-        self.history.set_just_rewound(just_rewound)
         self.cursor_offset_in_line = 0
         self._current_line = ''
 
@@ -180,8 +177,18 @@ class Repl(BpythonRepl):
         self.last_key_pressed = e
         if e in rl_char_sequences:
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
-        elif e in self.history.char_sequences:
-            self.cursor_offset_in_line, self._current_line = self.history.char_sequences[e](self.cursor_offset_in_line, self._current_line)
+
+        # readline history commands
+        elif e == "":
+            self.rl_history.enter(self._current_line)
+            self._current_line = self.rl_history.back(False)
+            self.cursor_offset_in_line = len(self._current_line)
+        elif e == "":
+            self.rl_history.enter(self._current_line)
+            self._current_line = self.rl_history.forward(False)
+            self.cursor_offset_in_line = len(self._current_line)
+        #TODO add rest of history commands
+
         elif e == "":
             raise KeyboardInterrupt()
         elif e == "":
@@ -196,7 +203,7 @@ class Repl(BpythonRepl):
         elif e == '\t': #tab
             self.on_tab()
         elif e == '':
-            self.on_rewind()
+            self.undo()
         else:
             self.add_normal_character(e)
 
