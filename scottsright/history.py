@@ -26,6 +26,7 @@ class History(object):
         self.filter_line = ''
         self.char_sequences = {seq: getattr(self, handler)
                                for seq, handler in CHAR_SEQUENCES.items()}
+        self.just_rewound = ''
 
     @property
     def history_lines(self):
