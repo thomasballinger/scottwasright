@@ -233,7 +233,7 @@ class Repl(object):
             self.indent_levels.append(indent + INDENT_AMOUNT)
         elif line and line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
-        elif line and ':' not in line and 'return' in line:
+        elif line and ':' not in line and line.strip().startswith(('return', 'pass', 'raise', 'yield')):
             self.indent_levels.pop()
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
