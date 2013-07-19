@@ -80,12 +80,14 @@ class Repl(object):
         rows, columns = self.height, self.width
         arr, cpos = self.paint()
         arr[cpos[0], cpos[1]] = '~'
-        def my_print(*messages):
-            self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
+        def my_print(msg):
+            self.orig_stdout.write(str(msg)+'\n')
         my_print('X'*(columns+8))
         my_print('X..'+('.'*(columns+2))+'..X')
         for line in arr:
-            my_print('X...'+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'...X')
+            my_print('X...'+(line if line else ' '*len(line))+'...X')
+        logging.debug('line:')
+        logging.debug(repr(line))
         my_print('X..'+('.'*(columns+2))+'..X')
         my_print('X'*(columns+8))
         return max(len(arr) - rows, 0)
@@ -264,7 +266,7 @@ class Repl(object):
             0:current_line.shape[1]] = current_line
 
         if current_line.shape[0] > min_height:
-            return arr # short circuit, no room for infobox
+            return arr, (0, 0) # short circuit, no room for infobox
 
         lines = paint.display_linize(self.current_display_line+'X', width)
                                        # extra character for space for the cursor
@@ -277,6 +279,8 @@ class Repl(object):
             info_max_rows = max(visible_space_above, visible_space_below)
             info = self.info(width-2, info_max_rows)
             infobox = paint.paint_infobox(info_max_rows, width, info)
+            logging.debug('infobox:')
+            logging.debug(infobox)
 
             if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
@@ -285,6 +289,7 @@ class Repl(object):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
         self.last_a_shape = arr.shape
+        logging.debug(arr)
         return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):
@@ -327,7 +332,7 @@ class Repl(object):
 def test():
     with Repl() as r:
         r.width = 50
-        r.height = 20
+        r.height = 10
         while True:
             scrolled = r.dumb_print_output()
             r.scroll_offset += scrolled

@@ -1,5 +1,7 @@
 
-import numpy
+from fmtstr.fmtstr import *
+from fmtstr.fsarray import fsarray
+
 
 #TODO take the boring parts of repl.paint out into here?
 
@@ -19,18 +21,18 @@ def paint_history(rows, columns, display_lines):
     lines = []
     for r, line in zip(range(rows), display_lines[-rows:]):
         lines.append((line+' '*1000)[:columns])
-    r = numpy.array([list(s) for s in lines]) if lines else numpy.zeros((0,0), dtype=numpy.character)
+    r = fsarray(lines)
     assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
     assert r.shape[1] <= columns
     return r
 
 def paint_current_line(rows, columns, current_display_line):
     lines = display_linize(current_display_line, columns)
-    return numpy.array([(list(line)+[' ']*columns)[:columns] for line in lines])
+    return fsarray([(line+' '*columns)[:columns] for line in lines])
 
 def paint_infobox(rows, columns, msg):
     if not (rows and columns):
-        return numpy.zeros((0,0), dtype=numpy.character)
+        return fsarray(0, 0)
     else:
         lines = msg.split('\n')
     width = min(columns - 2, max([len(line) for line in lines]))
@@ -39,6 +41,11 @@ def paint_infobox(rows, columns, msg):
     for line in lines:
         output_lines.extend(display_linize('|'+line+' '*(width - len(line))+'|', columns))
     output_lines.extend(display_linize('+'+'-'*width+'+', columns))
-    r = numpy.array([(list(x)+[' ']*(width+2))[:width+2] for x in output_lines][:rows])
+    r = fsarray([(x+' '*(width+2))[:width+2] for x in output_lines[:rows]])
     assert len(r.shape) == 2
-    return r[:rows-1, :]
+    return fsarray(r[:rows-1, :])
+
+if __name__ == '__main__':
+    #paint_history(10, 30, ['asdf', 'adsf', 'aadadfadf']).dumb_display()
+    h = paint_infobox(10, 30, '\n'.join(['asdf', 'adsf', 'aadadfadf']))
+    h.dumb_display()
