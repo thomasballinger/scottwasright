@@ -4,11 +4,9 @@ import sys
 import os
 import logging
 
-import numpy
+from fmtstr.fmtstr import fmtstr
+from fmtstr.fsarray import FSArray
 
-import termformat
-import terminalcontrol
-import termformatconstants
 import events
 
 logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
@@ -51,7 +49,7 @@ class Terminal(object):
         self.tc.set_screen_position((row, 1))
         self.tc.erase_rest_of_line()
 
-    def render_to_terminal(self, array, cursor_pos=(0,0), farray=None):
+    def render_to_terminal(self, array, cursor_pos=(0,0)):
         """Renders array to terminal, returns the number of lines
             scrolled offscreen
         outputs:
@@ -66,27 +64,20 @@ class Terminal(object):
         #TODO add cool render-on-change caching
         #TODO take a formatting array with same dimensions as array
 
-        if farray is None:
-            farray = numpy.zeros((array.shape[0], array.shape[1], 3), dtype=int)
-            farray[:, :, 0] = termformatconstants.GREEN
-            farray[:, :, 1] = 0 #termformatconstants.ON_GREEN
-            farray[:, :, 2] = termformatconstants.BOLD
-
         height, width = self.tc.get_screen_size()
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
-        for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
+        for row, line in zip(rows_for_use[:shared], array[:shared]):
             self.tc.set_screen_position((row, 1))
-            self.tc.write(termformat.formatted_text(line, fline))
+            self.tc.write(str(line))
             self.tc.erase_rest_of_line()
         rest_of_lines = array[shared:]
-        rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
             self.tc.set_screen_position((row, 1))
             self.tc.erase_line()
         offscreen_scrolls = 0
-        for line, fline in zip(rest_of_lines, rest_of_flines): # if array too big
+        for line in rest_of_lines: # if array too big
             logging.debug('sending scroll down message')
             self.tc.scroll_down()
             if self.top_usable_row > 1:
@@ -95,29 +86,27 @@ class Terminal(object):
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
             self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
-            self.tc.write(termformat.formatted_text(line, fline))
+            self.tc.write(str(line))
 
         self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
     def array_from_text(self, msg):
         rows, columns = self.tc.get_screen_size()
-        a = numpy.array([[' ' for _ in range(columns)] for _ in range(rows)])
+        arr = FSArray(0, columns)
         i = 0
         for c in msg:
-            if i >= a.size:
-                return a
+            if i >= rows * columns:
+                return arr
             elif c in '\r\n':
                 i = ((i / columns) + 1) * columns
             else:
-                a.flat[i] = c
+                arr[i / arr.columns, i % arr.columns] = [fmtstr(c)]
             i += 1
-        for r in reversed(range(rows)):
-            if all(a[r] == [' ' for _ in range(columns)]):
-                a = a[:r]
-        return a
+        return arr
 
 def test():
+    import terminalcontrol
     with terminalcontrol.TCPartialler(sys.stdin, sys.stdout) as tc:
         with Terminal(tc) as t:
             rows, columns = t.tc.get_screen_size()
@@ -128,19 +117,19 @@ def test():
                 elif c == "h":
                     a = t.array_from_text("a for small array")
                 elif c == "a":
-                    a = numpy.array([[c] * columns for _ in range(rows)])
+                    a = [fmtstr(c*columns) for _ in range(rows)]
                 elif c == "s":
-                    a = numpy.array([[c] * columns for _ in range(rows-1)])
+                    a = [fmtstr(c*columns) for _ in range(rows-1)]
                 elif c == "d":
-                    a = numpy.array([[c] * columns for _ in range(rows+1)])
+                    a = [fmtstr(c*columns) for _ in range(rows+1)]
                 elif c == "f":
-                    a = numpy.array([[c] * columns for _ in range(rows-2)])
+                    a = [fmtstr(c*columns) for _ in range(rows-2)]
                 elif c == "q":
-                    a = numpy.array([[c] * columns for _ in range(1)])
+                    a = [fmtstr(c*columns) for _ in range(1)]
                 elif c == "w":
-                    a = numpy.array([[c] * columns for _ in range(1)])
+                    a = [fmtstr(c*columns) for _ in range(1)]
                 elif c == "e":
-                    a = numpy.array([[c] * columns for _ in range(1)])
+                    a = [fmtstr(c*columns) for _ in range(1)]
                 elif isinstance(c, events.WindowChangeEvent):
                     a = t.array_from_text("window just changed to %d rows and %d columns" % (c.rows, c.columns))
                 elif c == "":
@@ -155,23 +144,24 @@ def main():
     rows, columns = t.tc.get_screen_size()
     import random
     goop = lambda l: [random.choice('aaabcddeeeefghiiijklmnooprssttuv        ') for _ in range(l)]
-    a = numpy.array([goop(columns) for _ in range(rows)])
+    a = [fmtstr(goop) for _ in range(rows)]
     t.render_to_terminal(a)
     while True:
         c = t.tc.get_event()
         if c == "":
             t.cleanup()
             sys.exit()
-        t.render_to_terminal(numpy.array([[c] * columns for _ in range(rows)]))
+        t.render_to_terminal([fmtstr(c*columns) for _ in range(rows)])
 
 def test_array_from_text():
-    t = Terminal(sys.stdin, sys.stdout)
+    class FakeTC(object): get_screen_size = lambda self: (30, 50)
+    t = Terminal(FakeTC())
     a = t.array_from_text('\n\nhey there\nyo')
     os.system('reset')
     for line in a:
-        print ''.join(line)
+        print str(line)
     raw_input()
 
 if __name__ == '__main__':
-    #test_array_from_text()
-    test()
+    test_array_from_text()
+    #test()

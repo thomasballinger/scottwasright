@@ -10,7 +10,7 @@ from bpython.autocomplete import Autocomplete
 import monkeypatch_site
 import replpainter as paint
 import events
-from autoextend import AutoExtending
+from  fmtstr.fsarray import FSArray
 from manual_readline import char_sequences as rl_char_sequences
 from history import History
 from abbreviate import substitute_abbreviations
@@ -78,17 +78,17 @@ class Repl(object):
 
     def dumb_print_output(self):
         rows, columns = self.height, self.width
-        a, cpos = self.paint()
-        a[cpos[0], cpos[1]] = '~'
+        arr, cpos = self.paint()
+        arr[cpos[0], cpos[1]] = '~'
         def my_print(*messages):
             self.orig_stdout.write(' '.join(str(msg) for msg in messages)+'\n')
         my_print('X'*(columns+8))
         my_print('X..'+('.'*(columns+2))+'..X')
-        for line in a:
+        for line in arr:
             my_print('X...'+(''.join([line[i] if line[i] else ' ' for i in range(len(line))]) if line[0] else ' '*columns)+'...X')
         my_print('X..'+('.'*(columns+2))+'..X')
         my_print('X'*(columns+8))
-        return max(len(a) - rows, 0)
+        return max(len(arr) - rows, 0)
 
     def dumb_input(self):
         for c in raw_input('>'):
@@ -253,18 +253,18 @@ class Repl(object):
     def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
         width, min_height = self.width, self.height
-        a = AutoExtending(0, width)
+        arr = FSArray(0, width) #, 'on_blue') ## default background color
         current_line_start_row = len(self.display_lines) - self.scroll_offset
 
         history = paint.paint_history(current_line_start_row, width, self.display_lines)
-        a[:history.shape[0],:history.shape[1]] = history
+        arr[:history.shape[0],:history.shape[1]] = history
 
         current_line = paint.paint_current_line(min_height, width, self.current_display_line)
-        a[current_line_start_row:current_line_start_row + current_line.shape[0],
+        arr[current_line_start_row:current_line_start_row + current_line.shape[0],
             0:current_line.shape[1]] = current_line
 
         if current_line.shape[0] > min_height:
-            return a # short circuit, no room for infobox
+            return arr # short circuit, no room for infobox
 
         lines = paint.display_linize(self.current_display_line+'X', width)
                                        # extra character for space for the cursor
@@ -280,12 +280,12 @@ class Repl(object):
 
             if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
-                a[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
+                arr[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
             else:
-                a[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
+                arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
-        self.last_a_shape = a.shape
-        return a, (cursor_row, cursor_column)
+        self.last_a_shape = arr.shape
+        return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):
         print 'window changed!'

@@ -1,4 +1,4 @@
 Pygments==1.6
 bpython==0.12
 numpy==1.7.1
-urwid==1.1.1
+-e git+git@github.com:thomasballinger/fmtstr.git@b4c398fa3bf2aa47a780555b5742e406c544827e#egg=strfmt-dev
