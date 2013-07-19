@@ -20,10 +20,10 @@ def display_linize(msg, columns):
 def paint_history(rows, columns, display_lines):
     lines = []
     for r, line in zip(range(rows), display_lines[-rows:]):
-        lines.append((line+' '*1000)[:columns])
+        lines.append(fmtstr((line+' '*1000)[:columns]))
     r = fsarray(lines)
     assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
-    assert r.shape[1] <= columns
+    assert r.shape[1] <= columns, repr(r.shape)+' '+repr(columns)
     return r
 
 def paint_current_line(rows, columns, current_display_line):

@@ -11,6 +11,7 @@ import monkeypatch_site
 import replpainter as paint
 import events
 from  fmtstr.fsarray import FSArray
+from fmtstr.fmtstr import fmtstr
 from manual_readline import char_sequences as rl_char_sequences
 from history import History
 from abbreviate import substitute_abbreviations
@@ -125,7 +126,7 @@ class Repl(object):
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
         if err:
-            self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in err.split('\n')], []))
+            self.display_lines.extend([fmtstr(line, 'red') for line in sum([paint.display_linize(line, self.width) for line in err.split('\n')], [])])
         self.current_line = ' '*indent
         self.cursor_offset_in_line = len(self.current_line)
 
