@@ -7,12 +7,15 @@ from cStringIO import StringIO
 from bpython.autocomplete import Autocomplete
 from bpython.repl import Repl as BpythonRepl
 from bpython.config import Struct, loadini, default_config_path
+from bpython.formatter import BPythonFormatter
+from pygments import format
 
 import monkeypatch_site
 import replpainter as paint
 import events
-from  fmtstr.fsarray import FSArray
+from fmtstr.fsarray import FSArray
 from fmtstr.fmtstr import fmtstr
+from fmtstr.bpythonparse import parse as bpythonparse
 from manual_readline import char_sequences as rl_char_sequences
 from abbreviate import substitute_abbreviations
 
@@ -48,11 +51,13 @@ class Repl(BpythonRepl):
         super(Repl, self).__init__(interp, config)
 
         self._current_line = ''
+        self.formatted_line = fmtstr('')
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
         self.history = [] # this is every line that's been executed;
                                 # it gets smaller on rewind
+        self.formatter = BPythonFormatter(config.color_scheme)
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
@@ -114,7 +119,7 @@ class Repl(BpythonRepl):
 
     @property
     def current_display_line(self):
-        return (self.ps1 if self.done else self.ps2) + self._current_line
+        return (self.ps1 if self.done else self.ps2) + self.formatted_line
 
     def on_backspace(self):
         if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
@@ -208,9 +213,14 @@ class Repl(BpythonRepl):
             self.undo()
         else:
             self.add_normal_character(e)
-        self.complete()
+        self.set_completion()
+        self.set_formatted_line()
 
-    def complete(self, tab=False):
+    def set_formatted_line(self):
+        self.formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
+        logging.debug(repr(self.formatted_line))
+
+    def set_completion(self, tab=False):
         """Update autocomplete info; self.matches and self.argspec"""
         # this method stolen from bpython.cli
         if self.paste_mode:
@@ -296,11 +306,11 @@ class Repl(BpythonRepl):
         history = paint.paint_history(current_line_start_row, width, self.display_lines)
         arr[:history.shape[0],:history.shape[1]] = history
 
-        _current_line = paint.paint_current_line(min_height, width, self.current_display_line)
-        arr[current_line_start_row:current_line_start_row + _current_line.shape[0],
-            0:_current_line.shape[1]] = _current_line
+        current_line = paint.paint_current_line(min_height, width, self.current_display_line)
+        arr[current_line_start_row:current_line_start_row + current_line.shape[0],
+            0:current_line.shape[1]] = current_line
 
-        if _current_line.shape[0] > min_height:
+        if current_line.shape[0] > min_height:
             return arr, (0, 0) # short circuit, no room for infobox
 
         lines = paint.display_linize(self.current_display_line+'X', width)
@@ -308,14 +318,11 @@ class Repl(BpythonRepl):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
-        #TOM TODO PLACE HERE currently working on setting list_win_visible in all the right places
         if self.list_win_visible and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
             infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
-            logging.debug('infobox:')
-            logging.debug(infobox)
 
             if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
@@ -324,8 +331,6 @@ class Repl(BpythonRepl):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
         self.last_a_shape = arr.shape
-        logging.debug("right before return")
-        logging.debug(arr.rows)
         return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):

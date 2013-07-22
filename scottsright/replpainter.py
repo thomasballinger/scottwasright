@@ -22,11 +22,7 @@ def paint_history(rows, columns, display_lines):
     lines = []
     for r, line in zip(range(rows), display_lines[-rows:]):
         lines.append((fmtstr(line)+' '*1000)[:columns])
-    logging.debug('=-=-=-=')
-    logging.debug(lines)
-    logging.debug('=-=-=-=')
     r = fsarray(lines)
-    logging.debug(r.rows)
     assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
     assert r.shape[1] <= columns, repr(r.shape)+' '+repr(columns)
     return r
@@ -58,9 +54,6 @@ def paint_infobox(rows, columns, matches, argspec, match, docstring, config):
              sum((display_linize(line, columns-2) for line in docstring.split('\n')) if docstring else [], []) +
              (matches_lines(rows, columns, matches) if matches else [])
              )
-    #TODO figure out why on_blue(red("adsf")) isn't working here
-    logging.debug("lines:")
-    logging.debug(lines)
 
     # add borders
     width = min(columns - 2, max([len(line) for line in lines]))
@@ -70,8 +63,6 @@ def paint_infobox(rows, columns, matches, argspec, match, docstring, config):
         output_lines.append('|'+((line+' '*(width - len(line)))[:width])+'|')
     output_lines.append('+'+'-'*width+'+')
     r = fsarray(output_lines[:rows])
-    logging.debug(r.rows)
-    logging.debug(r[:rows-1, :])
     assert len(r.shape) == 2
     #return r
     return fsarray(r[:rows-1, :])
