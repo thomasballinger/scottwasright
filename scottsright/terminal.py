@@ -70,7 +70,8 @@ class Terminal(object):
         for row, line in zip(rows_for_use[:shared], array[:shared]):
             self.tc.set_screen_position((row, 1))
             self.tc.write(str(line))
-            self.tc.erase_rest_of_line()
+            if len(line) < width:
+                self.tc.erase_rest_of_line()
         rest_of_lines = array[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
