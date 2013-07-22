@@ -2,6 +2,7 @@
 from fmtstr.fmtstr import *
 from fmtstr.fsarray import fsarray
 
+import logging
 
 #TODO take the boring parts of repl.paint out into here?
 
@@ -14,14 +15,18 @@ def display_linize(msg, columns):
                         for start, end in zip(
                             range(0, len(msg), columns),
                             range(columns, len(msg)+columns, columns))]
-                    if msg else [''])
+                    if msg else [])
     return display_lines
 
 def paint_history(rows, columns, display_lines):
     lines = []
     for r, line in zip(range(rows), display_lines[-rows:]):
-        lines.append(fmtstr((line+' '*1000)[:columns]))
+        lines.append((fmtstr(line)+' '*1000)[:columns])
+    logging.debug('=-=-=-=')
+    logging.debug(lines)
+    logging.debug('=-=-=-=')
     r = fsarray(lines)
+    logging.debug(r.rows)
     assert r.shape[0] <= rows, repr(r.shape)+' '+repr(rows)
     assert r.shape[1] <= columns, repr(r.shape)+' '+repr(columns)
     return r
@@ -30,22 +35,54 @@ def paint_current_line(rows, columns, current_display_line):
     lines = display_linize(current_display_line, columns)
     return fsarray([(line+' '*columns)[:columns] for line in lines])
 
-def paint_infobox(rows, columns, msg):
+def matches_lines(rows, columns, matches):
+    if not matches:
+        return []
+    max_match_width = max(len(m) for m in matches)
+    words_wide = max(1, (columns - 1) / (max_match_width + 1))
+    matches_lines = [fmtstr(' ').join(m.ljust(max_match_width)
+                              for m in matches[i:i+words_wide])
+                     for i in range(0, len(matches), words_wide)]
+    return matches_lines
+
+def formatted_argspec(argspec):
+    return argspec[0] + '(' + ", ".join(argspec[1][0]) + ')'
+
+def paint_infobox(rows, columns, matches, argspec, match, docstring, config):
+    """Returns painted completions, argspec, match, docstring etc."""
     if not (rows and columns):
         return fsarray(0, 0)
-    else:
-        lines = msg.split('\n')
+    lines = ([on_blue(red("Infobox test"))] +
+             (display_linize(blue(formatted_argspec(argspec)), columns-2) if argspec else []) +
+             (display_linize(str(argspec), columns-2) if argspec else []) +
+             sum((display_linize(line, columns-2) for line in docstring.split('\n')) if docstring else [], []) +
+             (matches_lines(rows, columns, matches) if matches else [])
+             )
+    #TODO figure out why on_blue(red("adsf")) isn't working here
+    logging.debug("lines:")
+    logging.debug(lines)
+
+    # add borders
     width = min(columns - 2, max([len(line) for line in lines]))
     output_lines = []
-    output_lines.extend(display_linize('+'+'-'*width+'+', columns))
+    output_lines.append('+'+'-'*width+'+')
     for line in lines:
-        output_lines.extend(display_linize('|'+line+' '*(width - len(line))+'|', columns))
-    output_lines.extend(display_linize('+'+'-'*width+'+', columns))
-    r = fsarray([(x+' '*(width+2))[:width+2] for x in output_lines[:rows]])
+        output_lines.append('|'+((line+' '*(width - len(line)))[:width])+'|')
+    output_lines.append('+'+'-'*width+'+')
+    r = fsarray(output_lines[:rows])
+    logging.debug(r.rows)
+    logging.debug(r[:rows-1, :])
     assert len(r.shape) == 2
+    #return r
     return fsarray(r[:rows-1, :])
 
 if __name__ == '__main__':
     #paint_history(10, 30, ['asdf', 'adsf', 'aadadfadf']).dumb_display()
-    h = paint_infobox(10, 30, '\n'.join(['asdf', 'adsf', 'aadadfadf']))
+    import inspect
+    h = paint_infobox(10, 30,
+                      matches=['asdf', 'adsf', 'aadadfadf'],
+                      argspec=inspect.getargspec(paint_infobox),
+                      match='asdf',
+                      docstring='Something Interesting',
+                      config=None)
     h.dumb_display()

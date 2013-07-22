@@ -1,4 +1,3 @@
-import traceback
 import sys
 import re
 import logging
@@ -62,7 +61,7 @@ class Repl(BpythonRepl):
 
         self.indent_levels = [0]
 
-        self.completer.autocomplete_mode = 'simple'
+        self.paste_mode = False
 
         self.width = None
         self.height = None
@@ -74,6 +73,9 @@ class Repl(BpythonRepl):
         logging.debug("echo called with %r" % msg)
     def cw(self):
         return self.current_word
+    @property
+    def cpos(self):
+        return self.cursor_offset_in_line
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
@@ -206,6 +208,21 @@ class Repl(BpythonRepl):
             self.undo()
         else:
             self.add_normal_character(e)
+        self.complete()
+
+    def complete(self, tab=False):
+        """Update autocomplete info; self.matches and self.argspec"""
+        # this method stolen from bpython.cli
+        if self.paste_mode:
+            return
+
+        if self.list_win_visible and not self.config.auto_display_list:
+            self.list_win_visible = False
+            self.matches_iter.update()
+            return
+
+        if self.config.auto_display_list or tab:
+            self.list_win_visible = BpythonRepl.complete(self, tab)
 
     @property
     def current_word(self):
@@ -291,12 +308,12 @@ class Repl(BpythonRepl):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
-        if self.current_word and not about_to_exit: # since we don't want the infobox then
+        #TOM TODO PLACE HERE currently working on setting list_win_visible in all the right places
+        if self.list_win_visible and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
-            info = self.info(width-2, info_max_rows)
-            infobox = paint.paint_infobox(info_max_rows, width, info)
+            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
             logging.debug('infobox:')
             logging.debug(infobox)
 
@@ -307,7 +324,8 @@ class Repl(BpythonRepl):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
         self.last_a_shape = arr.shape
-        logging.debug(arr)
+        logging.debug("right before return")
+        logging.debug(arr.rows)
         return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):
@@ -323,29 +341,6 @@ class Repl(BpythonRepl):
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'
         s += '>'
         return s
-
-    def info(self, width, height):
-        cw = self.current_word
-        if cw:
-            try:
-                self.completer.complete(cw, 0)
-            except:
-                e = traceback.format_exception(*sys.exc_info())
-                return '\n'.join(e)
-            else:
-                if not self.completer.matches:
-                    return 'no matches'
-                matches = sorted(set(self.completer.matches))
-                word_width = max(len(m) for m in matches)
-                words_per_line = ((width+1) / (word_width+1))
-                suggestions = '\n'.join(
-                    [' '.join(
-                        [m+(' '*(word_width - len(m)))
-                         for m in matches[i*words_per_line:(i+1)*words_per_line]])
-                     for i in range((len(matches) / words_per_line) + 1)])
-                return str(cw) + '\n' + suggestions
-        else:
-            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self._current_line))
 
 def test():
     with Repl() as r:
