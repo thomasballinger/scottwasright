@@ -52,7 +52,7 @@ class Repl(BpythonRepl):
         super(Repl, self).__init__(interp, config)
 
         self._current_line = ''
-        self.formatted_line = fmtstr('')
+        self.current_formatted_line = fmtstr('')
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
@@ -124,7 +124,7 @@ class Repl(BpythonRepl):
 
     @property
     def current_display_line(self):
-        return (self.ps1 if self.done else self.ps2) + self.formatted_line
+        return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
 
     def on_backspace(self):
         if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
@@ -176,6 +176,7 @@ class Repl(BpythonRepl):
 
         for line in old_logical_lines:
             self._current_line = line
+            self.set_formatted_line()
             self.on_enter()
         self.cursor_offset_in_line = 0
         self._current_line = ''
@@ -223,8 +224,8 @@ class Repl(BpythonRepl):
         self.set_formatted_line()
 
     def set_formatted_line(self):
-        self.formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
-        logging.debug(repr(self.formatted_line))
+        self.current_formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
+        logging.debug(repr(self.current_formatted_line))
 
     def set_completion(self, tab=False):
         """Update autocomplete info; self.matches and self.argspec"""
