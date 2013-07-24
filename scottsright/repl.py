@@ -191,11 +191,11 @@ class Repl(BpythonRepl):
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
 
         # readline history commands
-        elif e in ["", "[B"]:
+        elif e in ["", "[A"]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.back(False)
             self.cursor_offset_in_line = len(self._current_line)
-        elif e in ["", "[A"]:
+        elif e in ["", "[B"]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.forward(False)
             self.cursor_offset_in_line = len(self._current_line)
