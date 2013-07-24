@@ -141,6 +141,7 @@ class Repl(BpythonRepl):
                                  self._current_line[self.cursor_offset_in_line+1:])
 
     def on_enter(self):
+        #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
         self.history.append(self._current_line)
         self.rl_history.append(self._current_line)
         self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
