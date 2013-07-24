@@ -10,6 +10,7 @@ from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
 from pygments import format
 
+from friendly import NotImplementedError
 import monkeypatch_site
 import replpainter as paint
 import events
@@ -80,7 +81,11 @@ class Repl(BpythonRepl):
         return self.current_word
     @property
     def cpos(self):
-        return self.cursor_offset_in_line
+        "many WATs were had - it's the pos from the end of the line back"""
+        return len(self._current_line) - self.cursor_offset_in_line
+    def reprint_line(lineno, tokens):
+        #TODO can't have parens on different lines yet
+        raise NotImplementedError()
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
