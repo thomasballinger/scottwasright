@@ -58,6 +58,7 @@ class Repl(BpythonRepl):
                                 # was at the time of original output
         self.history = [] # this is every line that's been executed;
                                 # it gets smaller on rewind
+        self.display_buffer = []
         self.formatter = BPythonFormatter(config.color_scheme)
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
@@ -74,18 +75,77 @@ class Repl(BpythonRepl):
 
     ## Required by bpython.repl.Repl
     def current_line(self):
+        """Returns the current line"""
         return self._current_line
-    def echo(self, msg):
+    def echo(self, msg, redraw=True):
+        """
+        Notification that redrawing the current line is necessary (we dont' generally
+        care, since we always redraw the whole screen)
+
+        Supposed to parse and echo a formatted string with appropriate attributes. It
+        srings. It won't update the screen if it's reevaluating the code (as it
+        does with undo)."""
         logging.debug("echo called with %r" % msg)
     def cw(self):
+        """Returns the "current word", based on what's directly left of the cursor.
+        examples inclue "socket.socket.metho" or "self.reco" or "yiel" """
         return self.current_word
     @property
     def cpos(self):
         "many WATs were had - it's the pos from the end of the line back"""
         return len(self._current_line) - self.cursor_offset_in_line
-    def reprint_line(lineno, tokens):
+    def reprint_line(self, lineno, tokens):
         #TODO can't have parens on different lines yet
-        raise NotImplementedError()
+        logging.debug("calling reprint line with %r %r", lineno, tokens)
+        self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
+        #raise NotImplementedError()
+
+    @property
+    def highlighted_paren(self):
+        logging.debug('reading self.highlighted_paren')
+        return self._highlighted_paren
+    @highlighted_paren.setter
+    def highlighted_paren(self, value):
+        logging.debug('setting self.highlighted_paren to %r', value)
+        self._highlighted_paren = value
+
+    @property
+    def lines_for_display(self):
+        return self.display_lines + self.display_buffer_lines
+
+    ## wrappers for super functions so I can add descriptive docstrings
+    def tokenize(self, s, newline=False):
+        """Tokenizes a line of code, returning what that line should look like,
+        with side effects:
+
+        - reads self.cpos to see what parens should be highlighted
+        - reads self.buffer to see what came before the passed in line
+        - sets self.highlighted_paren to (buffer_lineno, tokens_for_that_line) for buffer line
+            that should replace that line to unhighlight it
+        - calls reprint_line with a buffer's line's tokens and the buffer lineno that has changed
+            iff that line is the not the current line
+        """
+        return super(Repl, self).tokenize(s, newline)
+
+    def unhighlight_paren(self):
+        """set self.display_buffer[]"""
+        if self.highlighted_paren is not None:
+            lineno, saved_tokens = self.highlighted_paren
+            if lineno == len(self.display_buffer):
+                # then this is the current line, so don't worry about it
+                return
+            self.highlighted_paren = None
+            logging.debug('trying to unhighlight a paren on line %r', lineno)
+            self.display_buffer[lineno] = bpythonparse(format(saved_tokens, self.formatter))
+
+    @property
+    def display_buffer_lines(self):
+        lines = []
+        for display_line in self.display_buffer:
+            display_line = (self.ps2 if lines else self.ps1) + display_line
+            for line in paint.display_linize(display_line, self.width):
+                lines.append(line)
+        return lines
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
@@ -142,9 +202,13 @@ class Repl(BpythonRepl):
 
     def on_enter(self):
         #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
+        # tokenize once more with cursor not at end of line anymore to remove parens
+        self.cursor_offset_in_line = 10000
+        self.set_formatted_line()
+        self.unhighlight_paren()
+
         self.history.append(self._current_line)
         self.rl_history.append(self._current_line)
-        self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
         output, err, self.done, indent = self.push(self._current_line)
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
@@ -276,6 +340,7 @@ class Repl(BpythonRepl):
 
         Return ("for stdout", "for_stderr", finished?)
         """
+        self.display_buffer.append(bpythonparse(format(self.tokenize(line), self.formatter)))
         self.buffer.append(line)
         indent = len(re.match(r'[ ]*', line).group())
         self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
@@ -299,6 +364,8 @@ class Repl(BpythonRepl):
             return (None, None, False, self.indent_levels[-1])
         else:
             logging.debug('finished - buffer cleared')
+            self.display_lines.extend(self.display_buffer_lines)
+            self.display_buffer = []
             self.buffer = []
             if err:
                 self.indent_levels = [0]
@@ -308,9 +375,10 @@ class Repl(BpythonRepl):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
         width, min_height = self.width, self.height
         arr = FSArray(0, width) #, 'on_blue') ## default background color
-        current_line_start_row = len(self.display_lines) - self.scroll_offset
+        current_line_start_row = len(self.lines_for_display) - self.scroll_offset
 
-        history = paint.paint_history(current_line_start_row, width, self.display_lines)
+        logging.debug(self.display_buffer_lines)
+        history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
         arr[:history.shape[0],:history.shape[1]] = history
 
         current_line = paint.paint_current_line(min_height, width, self.current_display_line)
