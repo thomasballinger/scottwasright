@@ -101,15 +101,6 @@ class Repl(BpythonRepl):
         #raise NotImplementedError()
 
     @property
-    def highlighted_paren(self):
-        logging.debug('reading self.highlighted_paren')
-        return self._highlighted_paren
-    @highlighted_paren.setter
-    def highlighted_paren(self, value):
-        logging.debug('setting self.highlighted_paren to %r', value)
-        self._highlighted_paren = value
-
-    @property
     def lines_for_display(self):
         return self.display_lines + self.display_buffer_lines
 
@@ -136,11 +127,15 @@ class Repl(BpythonRepl):
                 return
             self.highlighted_paren = None
             logging.debug('trying to unhighlight a paren on line %r', lineno)
-            self.display_buffer[lineno] = bpythonparse(format(saved_tokens, self.formatter))
+            logging.debug('with these tokens: %r', saved_tokens)
+            new = bpythonparse(format(saved_tokens, self.formatter))
+            self.display_buffer[lineno][:len(new)] = new
 
     @property
     def display_buffer_lines(self):
         lines = []
+        logging.debug('display_buffer:')
+        logging.debug(self.display_buffer)
         for display_line in self.display_buffer:
             display_line = (self.ps2 if lines else self.ps1) + display_line
             for line in paint.display_linize(display_line, self.width):
@@ -205,7 +200,6 @@ class Repl(BpythonRepl):
         # tokenize once more with cursor not at end of line anymore to remove parens
         self.cursor_offset_in_line = 10000
         self.set_formatted_line()
-        self.unhighlight_paren()
 
         self.history.append(self._current_line)
         self.rl_history.append(self._current_line)
@@ -238,6 +232,7 @@ class Repl(BpythonRepl):
         self.completer.autocomplete_mode = 'simple'
         self.buffer = []
         self.display_buffer = []
+        self.highlighted_paren = None
 
         for line in old_logical_lines:
             self._current_line = line
@@ -287,6 +282,7 @@ class Repl(BpythonRepl):
             self.add_normal_character(e)
         self.set_completion()
         self.set_formatted_line()
+        self.unhighlight_paren()
 
     def set_formatted_line(self):
         self.current_formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
@@ -378,7 +374,7 @@ class Repl(BpythonRepl):
         arr = FSArray(0, width) #, 'on_blue') ## default background color
         current_line_start_row = len(self.lines_for_display) - self.scroll_offset
 
-        logging.debug(self.display_buffer_lines)
+        logging.debug(self.lines_for_display)
         history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
         arr[:history.shape[0],:history.shape[1]] = history
 
