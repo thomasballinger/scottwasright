@@ -237,6 +237,7 @@ class Repl(BpythonRepl):
         self.completer = Autocomplete(self.interp.locals, self.config)
         self.completer.autocomplete_mode = 'simple'
         self.buffer = []
+        self.display_buffer = []
 
         for line in old_logical_lines:
             self._current_line = line
