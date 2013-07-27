@@ -19,7 +19,6 @@ It's ready for people to start to use it a teensy bit!
   * `source venv/bin/activate`
 * `pip install -e . -r requirements.txt`
 
-
 Things to do:
 
 Terminal Wrapper Library
@@ -32,3 +31,4 @@ Terminal Wrapper Library
   break history
 * integrate rest of functionality from bpython.repl
 * display library screen caching (rewrite only changing parts of terminal)
+* determine performance bottlenecks and speed up long lines (tons of caching to do!)

@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import logging
 import code
@@ -134,8 +135,6 @@ class Repl(BpythonRepl):
     @property
     def display_buffer_lines(self):
         lines = []
-        logging.debug('display_buffer:')
-        logging.debug(self.display_buffer)
         for display_line in self.display_buffer:
             display_line = (self.ps2 if lines else self.ps1) + display_line
             for line in paint.display_linize(display_line, self.width):
@@ -211,13 +210,44 @@ class Repl(BpythonRepl):
         self._current_line = ' '*indent
         self.cursor_offset_in_line = len(self._current_line)
 
-    def on_tab(self):
-        cw = self.current_word
-        if cw and self.completer.matches:
-            self.current_word = self.completer.matches[0]
-        elif self._current_line.count(' ') == len(self._current_line):
+    def on_tab(self, back=False):
+        """pretty direct translation of bpython.cli.tab()
+
+        indents / unindents
+        OR
+        expand the current word
+        OR
+        next or prev completion word
+        """
+        if not self._current_line.lstrip():
+            self.indent_levels.append((self.indent_levels[0] if self.indent_levels else 0) + INDENT_AMOUNT)
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
+            return
+
+        logging.debug("current word: %r", self.current_word)
+
+        logging.debug(self.matches_iter.matches)
+        if not self.matches_iter:
+            self.set_completion(tab=True)
+
+        common_seq = os.path.commonprefix(self.matches)
+        logging.debug("common_seq")
+        logging.debug(common_seq)
+
+        expanded_string = common_seq[len(self.current_word):]
+        if expanded_string:
+            self.matches_iter.update(common_seq, self.matches)
+            self.current_word = common_seq
+        elif self.matches:
+                self.current_word = (back and self.matches_iter.previous()
+                                           or self.matches_iter.next())
+        else:
+            logging.debug('No matches on tab')
+
+    def on_esc(self):
+        if self.matches_iter.current_word:
+            self.current_word = self.matches_iter.current_word
 
     def reevaluate(self):
         #TODO other implementations have a enter no-history method, could do
@@ -272,15 +302,21 @@ class Repl(BpythonRepl):
             self.on_backspace()
         elif e in ("\n", "\r"):
             self.on_enter()
+        elif e == "&":
+            self.on_esc()
         elif e == "" or e == "":
             pass #dunno what these are, but they screw things up #TODO find out
         elif e == '\t': #tab
             self.on_tab()
+        elif e == '[Z': #shift-tab
+            self.on_tab(back=True)
         elif e == '':
             self.undo()
         else:
             self.add_normal_character(e)
-        self.set_completion()
+
+        if e not in ['\t', '[Z']:
+            self.set_completion()
         self.set_formatted_line()
         self.unhighlight_paren()
 
