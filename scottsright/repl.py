@@ -203,6 +203,7 @@ class Repl(BpythonRepl):
 
         self.history.append(self._current_line)
         self.rl_history.append(self._current_line)
+        self.rl_history.last()
         output, err, self.done, indent = self.push(self._current_line)
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
