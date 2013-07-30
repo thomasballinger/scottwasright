@@ -25,15 +25,10 @@ Things to do:
 Terminal Wrapper Library
 ------------------------
 
-* Context manager for putting stdin in raw mode
-* Library for symbolically processing input into keys
-* get_event function that blocks, returning window change events, keypresses
-* screen output library that renders a rectangle of characters to the screen
+* add bpython-style tab completion
+    * inc. import completion
 * fix window size changing (happens now, but screws up easily)
-
-
-Paint Layer
------------
-
-* window resizing (probably not resizing prior output though)
-* nice api for painting characters different places
+* fix rewind/undo behavior when scolls above top of screen - either disallow or
+  break history
+* integrate rest of functionality from bpython.repl
+* display library screen caching (rewrite only changing parts of terminal)

@@ -1,4 +1,3 @@
-import traceback
 import sys
 import re
 import logging
@@ -6,14 +5,19 @@ import code
 from cStringIO import StringIO
 
 from bpython.autocomplete import Autocomplete
+from bpython.repl import Repl as BpythonRepl
+from bpython.config import Struct, loadini, default_config_path
+from bpython.formatter import BPythonFormatter
+from pygments import format
 
+from friendly import NotImplementedError
 import monkeypatch_site
 import replpainter as paint
 import events
-from  fmtstr.fsarray import FSArray
+from fmtstr.fsarray import FSArray
 from fmtstr.fmtstr import fmtstr
+from fmtstr.bpythonparse import parse as bpythonparse
 from manual_readline import char_sequences as rl_char_sequences
-from history import History
 from abbreviate import substitute_abbreviations
 
 INFOBOX_ONLY_BELOW = True
@@ -21,7 +25,7 @@ INDENT_AMOUNT = 4
 
 logging.basicConfig(level=logging.DEBUG, filename='repl.log')
 
-class Repl(object):
+class Repl(BpythonRepl):
     """
 
     takes in:
@@ -41,28 +45,102 @@ class Repl(object):
 
     def __init__(self):
         logging.debug("starting init")
-        self.current_line = ''
+        interp = code.InteractiveInterpreter()
+        config = Struct()
+        loadini(config, default_config_path())
+        logging.debug("starting parent init")
+        super(Repl, self).__init__(interp, config)
+
+        self._current_line = ''
+        self.current_formatted_line = fmtstr('')
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
-        self.logical_lines = [] # this is every line that's been executed;
+        self.history = [] # this is every line that's been executed;
                                 # it gets smaller on rewind
+        self.display_buffer = []
+        self.formatter = BPythonFormatter(config.color_scheme)
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
         self.last_key_pressed = None
         self.last_a_shape = (0,0)
         self.done = True
-        self.buffer = []
 
         self.indent_levels = [0]
 
-        self.history = History()
-        self.interp = code.InteractiveInterpreter()
-        self.completer = Autocomplete(self.interp.locals)
-        self.completer.autocomplete_mode = 'simple'
+        self.paste_mode = False
 
         self.width = None
         self.height = None
+
+    ## Required by bpython.repl.Repl
+    def current_line(self):
+        """Returns the current line"""
+        return self._current_line
+    def echo(self, msg, redraw=True):
+        """
+        Notification that redrawing the current line is necessary (we dont' generally
+        care, since we always redraw the whole screen)
+
+        Supposed to parse and echo a formatted string with appropriate attributes. It
+        srings. It won't update the screen if it's reevaluating the code (as it
+        does with undo)."""
+        logging.debug("echo called with %r" % msg)
+    def cw(self):
+        """Returns the "current word", based on what's directly left of the cursor.
+        examples inclue "socket.socket.metho" or "self.reco" or "yiel" """
+        return self.current_word
+    @property
+    def cpos(self):
+        "many WATs were had - it's the pos from the end of the line back"""
+        return len(self._current_line) - self.cursor_offset_in_line
+    def reprint_line(self, lineno, tokens):
+        #TODO can't have parens on different lines yet
+        logging.debug("calling reprint line with %r %r", lineno, tokens)
+        self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
+        #raise NotImplementedError()
+
+    @property
+    def lines_for_display(self):
+        return self.display_lines + self.display_buffer_lines
+
+    ## wrappers for super functions so I can add descriptive docstrings
+    def tokenize(self, s, newline=False):
+        """Tokenizes a line of code, returning what that line should look like,
+        with side effects:
+
+        - reads self.cpos to see what parens should be highlighted
+        - reads self.buffer to see what came before the passed in line
+        - sets self.highlighted_paren to (buffer_lineno, tokens_for_that_line) for buffer line
+            that should replace that line to unhighlight it
+        - calls reprint_line with a buffer's line's tokens and the buffer lineno that has changed
+            iff that line is the not the current line
+        """
+        return super(Repl, self).tokenize(s, newline)
+
+    def unhighlight_paren(self):
+        """set self.display_buffer[]"""
+        if self.highlighted_paren is not None:
+            lineno, saved_tokens = self.highlighted_paren
+            if lineno == len(self.display_buffer):
+                # then this is the current line, so don't worry about it
+                return
+            self.highlighted_paren = None
+            logging.debug('trying to unhighlight a paren on line %r', lineno)
+            logging.debug('with these tokens: %r', saved_tokens)
+            new = bpythonparse(format(saved_tokens, self.formatter))
+            self.display_buffer[lineno][:len(new)] = new
+
+    @property
+    def display_buffer_lines(self):
+        lines = []
+        logging.debug('display_buffer:')
+        logging.debug(self.display_buffer)
+        for display_line in self.display_buffer:
+            display_line = (self.ps2 if lines else self.ps1) + display_line
+            for line in paint.display_linize(display_line, self.width):
+                lines.append(line)
+        return lines
 
     def __enter__(self):
         self.orig_stdin = sys.stdin
@@ -101,64 +179,67 @@ class Repl(object):
 
     @property
     def current_display_line(self):
-        return (">>> " if self.done else "... ") + self.current_line
+        return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
 
     def on_backspace(self):
-        if 0 < self.cursor_offset_in_line == len(self.current_line) and self.current_line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+        if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
             self.cursor_offset_in_line = self.indent_levels[-1]
-            self.current_line = self.current_line[:self.indent_levels[-1]]
-        elif self.cursor_offset_in_line == len(self.current_line) and self.current_line.endswith(' '*INDENT_AMOUNT):
+            self._current_line = self._current_line[:self.indent_levels[-1]]
+        elif self.cursor_offset_in_line == len(self._current_line) and self._current_line.endswith(' '*INDENT_AMOUNT):
             #dumber version
             self.cursor_offset_in_line = self.cursor_offset_in_line - 4
-            self.current_line = self.current_line[:-4]
+            self._current_line = self._current_line[:-4]
         else:
             self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-            self.current_line = (self.current_line[:max(0, self.cursor_offset_in_line)] +
-                                 self.current_line[self.cursor_offset_in_line+1:])
+            self._current_line = (self._current_line[:max(0, self.cursor_offset_in_line)] +
+                                 self._current_line[self.cursor_offset_in_line+1:])
 
     def on_enter(self):
-        self.cursor_offset_in_line = 0
-        self.logical_lines.append(self.current_line)
-        self.history.on_enter(self.current_line)
-        self.display_lines.extend(paint.display_linize(self.current_display_line, self.width))
-        output, err, self.done, indent = self.push(self.current_line)
+        #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
+        # tokenize once more with cursor not at end of line anymore to remove parens
+        self.cursor_offset_in_line = 10000
+        self.set_formatted_line()
+
+        self.history.append(self._current_line)
+        self.rl_history.append(self._current_line)
+        output, err, self.done, indent = self.push(self._current_line)
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
         if err:
             self.display_lines.extend([fmtstr(line, 'red') for line in sum([paint.display_linize(line, self.width) for line in err.split('\n')], [])])
-        self.current_line = ' '*indent
-        self.cursor_offset_in_line = len(self.current_line)
+        self._current_line = ' '*indent
+        self.cursor_offset_in_line = len(self._current_line)
 
     def on_tab(self):
         cw = self.current_word
         if cw and self.completer.matches:
             self.current_word = self.completer.matches[0]
-        elif self.current_line.count(' ') == len(self.current_line):
+        elif self._current_line.count(' ') == len(self._current_line):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
-    def on_rewind(self):
-        if len(self.logical_lines) < 1:
-            return
-        just_rewound = self.logical_lines.pop()
-        old_logical_lines = self.logical_lines
-        self.logical_lines = []
+    def reevaluate(self):
+        #TODO other implementations have a enter no-history method, could do
+        # that instead of clearing history and getting it rewritten
+        old_logical_lines = self.history
+        self.history = []
         self.display_lines = []
-        self.history.clear_history_before_rewind()
 
-        self.done = True
+        self.done = True # this keeps the first prompt correct
         self.interp = code.InteractiveInterpreter()
-        self.completer = Autocomplete(self.interp.locals)
+        self.completer = Autocomplete(self.interp.locals, self.config)
         self.completer.autocomplete_mode = 'simple'
         self.buffer = []
+        self.display_buffer = []
+        self.highlighted_paren = None
 
         for line in old_logical_lines:
-            self.current_line = line
+            self._current_line = line
+            self.set_formatted_line()
             self.on_enter()
-        self.history.set_just_rewound(just_rewound)
         self.cursor_offset_in_line = 0
-        self.current_line = ''
+        self._current_line = ''
 
     def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
@@ -169,9 +250,19 @@ class Repl(object):
             return
         self.last_key_pressed = e
         if e in rl_char_sequences:
-            self.cursor_offset_in_line, self.current_line = rl_char_sequences[e](self.cursor_offset_in_line, self.current_line)
-        elif e in self.history.char_sequences:
-            self.cursor_offset_in_line, self.current_line = self.history.char_sequences[e](self.cursor_offset_in_line, self.current_line)
+            self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
+
+        # readline history commands
+        elif e in ["", "[A"]:
+            self.rl_history.enter(self._current_line)
+            self._current_line = self.rl_history.back(False)
+            self.cursor_offset_in_line = len(self._current_line)
+        elif e in ["", "[B"]:
+            self.rl_history.enter(self._current_line)
+            self._current_line = self.rl_history.forward(False)
+            self.cursor_offset_in_line = len(self._current_line)
+        #TODO add rest of history commands
+
         elif e == "":
             raise KeyboardInterrupt()
         elif e == "":
@@ -186,13 +277,34 @@ class Repl(object):
         elif e == '\t': #tab
             self.on_tab()
         elif e == '':
-            self.on_rewind()
+            self.undo()
         else:
             self.add_normal_character(e)
+        self.set_completion()
+        self.set_formatted_line()
+        self.unhighlight_paren()
+
+    def set_formatted_line(self):
+        self.current_formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
+        logging.debug(repr(self.current_formatted_line))
+
+    def set_completion(self, tab=False):
+        """Update autocomplete info; self.matches and self.argspec"""
+        # this method stolen from bpython.cli
+        if self.paste_mode:
+            return
+
+        if self.list_win_visible and not self.config.auto_display_list:
+            self.list_win_visible = False
+            self.matches_iter.update()
+            return
+
+        if self.config.auto_display_list or tab:
+            self.list_win_visible = BpythonRepl.complete(self, tab)
 
     @property
     def current_word(self):
-        words = re.split(r'([\w_][\w0-9._]*)', self.current_line)
+        words = re.split(r'([\w_][\w0-9._]*)', self._current_line)
         chars = 0
         cw = None
         for word in words:
@@ -206,18 +318,18 @@ class Repl(object):
     def current_word(self, value):
         # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
         pos = self.cursor_offset_in_line - 1
-        while pos > -1 and self.current_line[pos] not in tuple(' :()'):
+        while pos > -1 and self._current_line[pos] not in tuple(' :()'):
             pos -= 1
         start = pos + 1; del pos
-        self.current_line = self.current_line[:start] + value + self.current_line[self.cursor_offset_in_line:]
+        self._current_line = self._current_line[:start] + value + self._current_line[self.cursor_offset_in_line:]
         self.cursor_offset_in_line = start + len(value)
 
     def add_normal_character(self, char):
-        self.current_line = (self.current_line[:self.cursor_offset_in_line] +
+        self._current_line = (self._current_line[:self.cursor_offset_in_line] +
                              char +
-                             self.current_line[self.cursor_offset_in_line:])
+                             self._current_line[self.cursor_offset_in_line:])
         self.cursor_offset_in_line += 1
-        self.cursor_offset_in_line, self.current_line = substitute_abbreviations(self.cursor_offset_in_line, self.current_line)
+        self.cursor_offset_in_line, self._current_line = substitute_abbreviations(self.cursor_offset_in_line, self._current_line)
         #TODO deal with characters that take up more than one space? do we care?
 
     def push(self, line):
@@ -225,13 +337,14 @@ class Repl(object):
 
         Return ("for stdout", "for_stderr", finished?)
         """
+        self.display_buffer.append(bpythonparse(format(self.tokenize(line), self.formatter)))
         self.buffer.append(line)
         indent = len(re.match(r'[ ]*', line).group())
         self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
 
         if line.endswith(':'):
             self.indent_levels.append(indent + INDENT_AMOUNT)
-        elif line and line.count(' ') == len(self.current_line) == self.indent_levels[-1]:
+        elif line and line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
         elif line and ':' not in line and line.strip().startswith(('return', 'pass', 'raise', 'yield')):
             self.indent_levels.pop()
@@ -248,6 +361,8 @@ class Repl(object):
             return (None, None, False, self.indent_levels[-1])
         else:
             logging.debug('finished - buffer cleared')
+            self.display_lines.extend(self.display_buffer_lines)
+            self.display_buffer = []
             self.buffer = []
             if err:
                 self.indent_levels = [0]
@@ -257,9 +372,10 @@ class Repl(object):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
         width, min_height = self.width, self.height
         arr = FSArray(0, width) #, 'on_blue') ## default background color
-        current_line_start_row = len(self.display_lines) - self.scroll_offset
+        current_line_start_row = len(self.lines_for_display) - self.scroll_offset
 
-        history = paint.paint_history(current_line_start_row, width, self.display_lines)
+        logging.debug(self.lines_for_display)
+        history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
         arr[:history.shape[0],:history.shape[1]] = history
 
         current_line = paint.paint_current_line(min_height, width, self.current_display_line)
@@ -272,16 +388,13 @@ class Repl(object):
         lines = paint.display_linize(self.current_display_line+'X', width)
                                        # extra character for space for the cursor
         cursor_row = current_line_start_row + len(lines) - 1
-        cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self.current_line)) % width
+        cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
-        if self.current_word and not about_to_exit: # since we don't want the infobox then
+        if self.list_win_visible and not about_to_exit: # since we don't want the infobox then
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
-            info = self.info(width-2, info_max_rows)
-            infobox = paint.paint_infobox(info_max_rows, width, info)
-            logging.debug('infobox:')
-            logging.debug(infobox)
+            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
 
             if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
                 assert len(infobox.shape) == 2, repr(infobox.shape)
@@ -290,7 +403,6 @@ class Repl(object):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
 
         self.last_a_shape = arr.shape
-        logging.debug(arr)
         return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):
@@ -306,29 +418,6 @@ class Repl(object):
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'
         s += '>'
         return s
-
-    def info(self, width, height):
-        cw = self.current_word
-        if cw:
-            try:
-                self.completer.complete(cw, 0)
-            except:
-                e = traceback.format_exception(*sys.exc_info())
-                return '\n'.join(e)
-            else:
-                if not self.completer.matches:
-                    return 'no matches'
-                matches = sorted(set(self.completer.matches))
-                word_width = max(len(m) for m in matches)
-                words_per_line = ((width+1) / (word_width+1))
-                suggestions = '\n'.join(
-                    [' '.join(
-                        [m+(' '*(word_width - len(m)))
-                         for m in matches[i*words_per_line:(i+1)*words_per_line]])
-                     for i in range((len(matches) / words_per_line) + 1)])
-                return str(cw) + '\n' + suggestions
-        else:
-            return 'no current word:\n' + repr(re.split(r'([\w_][\w0-9._]+)', self.current_line))
 
 def test():
     with Repl() as r:

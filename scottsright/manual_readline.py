@@ -4,13 +4,7 @@ just the ones that fit the model of transforming the current line
 and the cursor location
 in the order of description at http://www.bigsmoke.us/readline/shortcuts"""
 
-class NotImplementedError(NotImplementedError):
-    def __init__(self, msg=None):
-        if msg is None:
-            super(NotImplementedError, self).__init__("Implement it and submit a pull request!")
-        else:
-            super(NotImplementedError, self).__init__(msg)
-
+from friendly import NotImplementedError
 char_sequences = {}
 
 def on(seq):
