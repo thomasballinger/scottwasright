@@ -283,12 +283,12 @@ class Repl(BpythonRepl):
             self.add_normal_character(e)
         self.set_completion()
         self.set_formatted_line()
-        self.unhighlight_paren()
 
     def clean_up_current_line_for_exit(self):
         """Called when trying to exit to prep for final paint"""
         logging.debug('resetting formatted line for exit')
         self.cursor_offset_in_line = -1
+        self.unhighlight_paren()
         self.set_formatted_line()
 
     def set_formatted_line(self):
