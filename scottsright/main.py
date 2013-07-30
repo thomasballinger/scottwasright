@@ -1,21 +1,23 @@
 from scottsright.terminal import Terminal
 from scottsright.repl import Repl
 from scottsright.terminalcontrol import TCPartialler
-import sys
 
 def main():
     with TCPartialler() as tc:
-        with Terminal(tc) as t:
-            with Repl() as r:
+        with Terminal(tc) as term:
+            with Repl() as repl:
                 rows, columns = tc.get_screen_size()
-                r.width = columns
-                r.height = rows
+                repl.width = columns
+                repl.height = rows
                 while True:
-                    result = r.process_event(tc.get_event())
-                    array, cursor_pos = r.paint()
-                    scrolled = t.render_to_terminal(array, cursor_pos)
-                    r.scroll_offset += scrolled
-                    if result:
-                        sys.exit()
-
+                    try:
+                        repl.process_event(tc.get_event())
+                    except SystemExit:
+                        array, cursor_pos = repl.paint(about_to_exit=True)
+                        term.render_to_terminal(array, cursor_pos)
+                        raise
+                    else:
+                        array, cursor_pos = repl.paint()
+                        scrolled = term.render_to_terminal(array, cursor_pos)
+                        repl.scroll_offset += scrolled
 main()

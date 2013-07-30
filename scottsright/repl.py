@@ -199,10 +199,11 @@ class Repl(BpythonRepl):
         #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
         # tokenize once more with cursor not at end of line anymore to remove parens
         self.cursor_offset_in_line = 10000
+        self.unhighlight_paren()
         self.set_formatted_line()
 
-        self.history.append(self._current_line)
         self.rl_history.append(self._current_line)
+        self.history.append(self._current_line)
         output, err, self.done, indent = self.push(self._current_line)
         if output:
             self.display_lines.extend(sum([paint.display_linize(line, self.width) for line in output.split('\n')], []))
@@ -266,8 +267,7 @@ class Repl(BpythonRepl):
         elif e == "":
             raise KeyboardInterrupt()
         elif e == "":
-            logging.debug('ctrl-d; returning true')
-            return True
+            raise SystemExit()
         elif e == '': # backspace
             self.on_backspace()
         elif e in ("\n", "\r"):
@@ -283,6 +283,12 @@ class Repl(BpythonRepl):
         self.set_completion()
         self.set_formatted_line()
         self.unhighlight_paren()
+
+    def clean_up_current_line_for_exit(self):
+        """Called when trying to exit to prep for final paint"""
+        logging.debug('resetting formatted line for exit')
+        self.cursor_offset_in_line = -1
+        self.set_formatted_line()
 
     def set_formatted_line(self):
         self.current_formatted_line = bpythonparse(format(self.tokenize(self._current_line), self.formatter))
@@ -337,7 +343,6 @@ class Repl(BpythonRepl):
 
         Return ("for stdout", "for_stderr", finished?)
         """
-        self.display_buffer.append(bpythonparse(format(self.tokenize(line), self.formatter)))
         self.buffer.append(line)
         indent = len(re.match(r'[ ]*', line).group())
         self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
@@ -352,6 +357,7 @@ class Repl(BpythonRepl):
         err_spot = sys.stderr.tell()
         logging.debug('running %r in interpreter', self.buffer)
         unfinished = self.interp.runsource('\n'.join(self.buffer))
+        self.display_buffer.append(bpythonparse(format(self.tokenize(line), self.formatter))) #current line not added to display buffer if quitting
         sys.stdout.seek(out_spot)
         sys.stderr.seek(err_spot)
         out = sys.stdout.read()
@@ -370,6 +376,8 @@ class Repl(BpythonRepl):
 
     def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
+        if about_to_exit:
+            self.clean_up_current_line_for_exit()
         width, min_height = self.width, self.height
         arr = FSArray(0, width) #, 'on_blue') ## default background color
         current_line_start_row = len(self.lines_for_display) - self.scroll_offset
@@ -390,7 +398,10 @@ class Repl(BpythonRepl):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
-        if self.list_win_visible and not about_to_exit: # since we don't want the infobox then
+        if not self.list_win_visible:
+            logging.debug('list win not visible')
+        if self.list_win_visible: # since we don't want the infobox then
+            logging.debug('infobox display code running')
             visible_space_above = history.shape[0]
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
@@ -401,6 +412,7 @@ class Repl(BpythonRepl):
                 arr[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
             else:
                 arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
+                logging.debug('slamming infobox of shape %r into arr', infobox.shape)
 
         self.last_a_shape = arr.shape
         return arr, (cursor_row, cursor_column)
