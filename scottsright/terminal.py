@@ -38,8 +38,6 @@ class Terminal(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        # We may have been killed by stderr being closed, so we
-        # might not be able to query the cursor position.
         logging.debug("running __exit__")
         self.tc.scroll_down()
         row, _ = self.tc.get_cursor_position()
