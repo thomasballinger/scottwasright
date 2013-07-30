@@ -134,8 +134,8 @@ class Repl(BpythonRepl):
     @property
     def display_buffer_lines(self):
         lines = []
-        logging.debug('display_buffer:')
-        logging.debug(self.display_buffer)
+        #logging.debug('display_buffer:')
+        #logging.debug(self.display_buffer)
         for display_line in self.display_buffer:
             display_line = (self.ps2 if lines else self.ps1) + display_line
             for line in paint.display_linize(display_line, self.width):
@@ -182,6 +182,7 @@ class Repl(BpythonRepl):
         return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
 
     def on_backspace(self):
+        #TODO simplify this
         if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
             self.indent_levels.pop()
             self.cursor_offset_in_line = self.indent_levels[-1]
@@ -192,8 +193,8 @@ class Repl(BpythonRepl):
             self._current_line = self._current_line[:-4]
         else:
             self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-            self._current_line = (self._current_line[:max(0, self.cursor_offset_in_line)] +
-                                 self._current_line[self.cursor_offset_in_line+1:])
+            self._current_line = (self._current_line[:max(0, self.cursor_offset_in_line-1)] +
+                                 self._current_line[self.cursor_offset_in_line:])
 
     def on_enter(self):
         #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
@@ -348,6 +349,7 @@ class Repl(BpythonRepl):
         indent = len(re.match(r'[ ]*', line).group())
         self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
 
+        #TODO improve or get rid of the idea of indent levels - just force 4 spaces!
         if line.endswith(':'):
             self.indent_levels.append(indent + INDENT_AMOUNT)
         elif line and line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
