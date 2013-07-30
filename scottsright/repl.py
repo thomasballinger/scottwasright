@@ -273,7 +273,7 @@ class Repl(BpythonRepl):
             self.on_backspace()
         elif e in ("\n", "\r"):
             self.on_enter()
-        elif e == "" or e == "":
+        elif e in ["", "", "\x00", "\x11"]:
             pass #dunno what these are, but they screw things up #TODO find out
         elif e == '\t': #tab
             self.on_tab()

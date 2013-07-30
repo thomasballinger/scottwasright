@@ -38,7 +38,7 @@ def produce_cursor_sequence(char):
         if n: self.out_stream.write("[%d%s" % (n, char))
     return func
 
-class TCPartialler(object):
+class TerminalController(object):
     """Returns terminal control functions partialed for stream returned by
     stream_getter on att lookup"""
     def __init__(self, in_stream=sys.stdin, out_stream=sys.stdout):
@@ -117,7 +117,7 @@ class TCPartialler(object):
                 self.in_buffer.extend(list(m.groupdict()['extra']))
                 return (row, col)
 
-    def set_screen_position(self, (row, col)):
+    def set_cursor_position(self, (row, col)):
         self.out_stream.write("[%d;%dH" % (row, col))
 
     def get_screen_size(self):
@@ -126,11 +126,11 @@ class TCPartialler(object):
         self.fwd(10000) # 10000 is much larger than any reasonable terminal
         self.down(10000)
         size = self.get_cursor_position()
-        self.set_screen_position(orig)
+        self.set_cursor_position(orig)
         return size
 
 def test():
-    with TCPartialler() as tc:
+    with TerminalController() as tc:
         pos = str(tc.get_cursor_position())
         tc.write(pos)
         tc.back(len(pos))

@@ -1,9 +1,9 @@
 from scottsright.terminal import Terminal
 from scottsright.repl import Repl
-from scottsright.terminalcontrol import TCPartialler
+from scottsright.terminalcontrol import TerminalController
 
 def main():
-    with TCPartialler() as tc:
+    with TerminalController() as tc:
         with Terminal(tc) as term:
             with Repl() as repl:
                 rows, columns = tc.get_screen_size()
