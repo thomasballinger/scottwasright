@@ -61,8 +61,6 @@ class Repl(BpythonRepl):
         self.formatter = BPythonFormatter(config.color_scheme)
         self.scroll_offset = 0
         self.cursor_offset_in_line = 0
-        self.last_key_pressed = None
-        self.last_a_shape = (0,0)
         self.done = True
 
         self.paste_mode = False
@@ -232,7 +230,6 @@ class Repl(BpythonRepl):
             logging.debug('window change to %d %d', e.width, e.height)
             self.width, self.height = e.width, e.height
             return
-        self.last_key_pressed = e
         if e in rl_char_sequences:
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
 
@@ -356,21 +353,23 @@ class Repl(BpythonRepl):
 
     def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
+
         if about_to_exit:
             self.clean_up_current_line_for_exit()
+
         width, min_height = self.width, self.height
-        arr = FSArray(0, width) #, 'on_blue') ## default background color
+        arr = FSArray(0, width)
         current_line_start_row = len(self.lines_for_display) - self.scroll_offset
 
         logging.debug(self.lines_for_display)
         history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
-        arr[:history.shape[0],:history.shape[1]] = history
+        arr[:history.height,:history.width] = history
 
         current_line = paint.paint_current_line(min_height, width, self.current_display_line)
-        arr[current_line_start_row:current_line_start_row + current_line.shape[0],
-            0:current_line.shape[1]] = current_line
+        arr[current_line_start_row:current_line_start_row + current_line.height,
+            0:current_line.width] = current_line
 
-        if current_line.shape[0] > min_height:
+        if current_line.height > min_height:
             return arr, (0, 0) # short circuit, no room for infobox
 
         lines = paint.display_linize(self.current_display_line+'X', width)
@@ -378,23 +377,19 @@ class Repl(BpythonRepl):
         cursor_row = current_line_start_row + len(lines) - 1
         cursor_column = (self.cursor_offset_in_line + len(self.current_display_line) - len(self._current_line)) % width
 
-        if not self.list_win_visible:
-            logging.debug('list win not visible')
-        if self.list_win_visible: # since we don't want the infobox then
+        if self.list_win_visible:
             logging.debug('infobox display code running')
-            visible_space_above = history.shape[0]
+            visible_space_above = history.height
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
             infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
 
-            if visible_space_above >= infobox.shape[0] and not INFOBOX_ONLY_BELOW:
-                assert len(infobox.shape) == 2, repr(infobox.shape)
-                arr[current_line_start_row - infobox.shape[0]:current_line_start_row, 0:infobox.shape[1]] = infobox
+            if visible_space_above >= infobox.height and not INFOBOX_ONLY_BELOW:
+                arr[current_line_start_row - infobox.height:current_line_start_row, 0:infobox.width] = infobox
             else:
-                arr[cursor_row + 1:cursor_row + 1 + infobox.shape[0], 0:infobox.shape[1]] = infobox
+                arr[cursor_row + 1:cursor_row + 1 + infobox.height, 0:infobox.width] = infobox
                 logging.debug('slamming infobox of shape %r into arr', infobox.shape)
 
-        self.last_a_shape = arr.shape
         return arr, (cursor_row, cursor_column)
 
     def window_change_event(self):
@@ -403,10 +398,8 @@ class Repl(BpythonRepl):
     def __repr__(self):
         s = ''
         s += '<TerminalWrapper\n'
-        s += " size of last array rendered" + repr(self.last_a_shape) + '\n'
         s += " cursor_offset_in_line:" + repr(self.cursor_offset_in_line) + '\n'
         s += " num display lines:" + repr(len(self.display_lines)) + '\n'
-        s += " last key presed:" + repr(self.last_key_pressed) + '\n'
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'
         s += '>'
         return s
