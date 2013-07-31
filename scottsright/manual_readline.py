@@ -7,6 +7,8 @@ in the order of description at http://www.bigsmoke.us/readline/shortcuts"""
 from friendly import NotImplementedError
 char_sequences = {}
 
+INDENT = 4
+
 def on(seq):
     def add_to_char_sequences(func):
         char_sequences[seq] = func
@@ -43,6 +45,18 @@ def back_word(cursor_offset, line):
 def delete(cursor_offset, line):
     return (cursor_offset,
             line[:cursor_offset] + line[cursor_offset+1:])
+
+@on('')
+@on('')
+def backspace(cursor_offset, line):
+    if cursor_offset == 0:
+        return cursor_offset, line
+    if not line[:cursor_offset].strip(): #if just whitespace left of cursor
+        front_white = len(line[:cursor_offset]) - len(line[:cursor_offset].lstrip())
+        to_delete = ((front_white - 1) % INDENT) + 1
+        return cursor_offset - to_delete, line[:to_delete]
+    return (cursor_offset - 1,
+            line[:cursor_offset - 1] + line[cursor_offset:])
 
 @on('')
 def delete_from_cursor_back(cursor_offset, line):

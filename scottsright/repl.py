@@ -66,8 +66,6 @@ class Repl(BpythonRepl):
         self.last_a_shape = (0,0)
         self.done = True
 
-        self.indent_levels = [0]
-
         self.paste_mode = False
 
         self.width = None
@@ -181,21 +179,6 @@ class Repl(BpythonRepl):
     def current_display_line(self):
         return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
 
-    def on_backspace(self):
-        #TODO simplify this
-        if 0 < self.cursor_offset_in_line == len(self._current_line) and self._current_line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
-            self.indent_levels.pop()
-            self.cursor_offset_in_line = self.indent_levels[-1]
-            self._current_line = self._current_line[:self.indent_levels[-1]]
-        elif self.cursor_offset_in_line == len(self._current_line) and self._current_line.endswith(' '*INDENT_AMOUNT):
-            #dumber version
-            self.cursor_offset_in_line = self.cursor_offset_in_line - 4
-            self._current_line = self._current_line[:-4]
-        else:
-            self.cursor_offset_in_line = max(self.cursor_offset_in_line - 1, 0)
-            self._current_line = (self._current_line[:max(0, self.cursor_offset_in_line-1)] +
-                                 self._current_line[self.cursor_offset_in_line:])
-
     def on_enter(self):
         #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
         # tokenize once more with cursor not at end of line anymore to remove parens
@@ -270,8 +253,6 @@ class Repl(BpythonRepl):
             raise KeyboardInterrupt()
         elif e == "":
             raise SystemExit()
-        elif e == '': # backspace
-            self.on_backspace()
         elif e in ("\n", "\r"):
             self.on_enter()
         elif e in ["", "", "\x00", "\x11"]:
@@ -347,15 +328,13 @@ class Repl(BpythonRepl):
         """
         self.buffer.append(line)
         indent = len(re.match(r'[ ]*', line).group())
-        self.indent_levels = [l for l in self.indent_levels if l < indent] + [indent]
 
-        #TODO improve or get rid of the idea of indent levels - just force 4 spaces!
         if line.endswith(':'):
-            self.indent_levels.append(indent + INDENT_AMOUNT)
-        elif line and line.count(' ') == len(self._current_line) == self.indent_levels[-1]:
-            self.indent_levels.pop()
+            indent = max(0, indent + INDENT_AMOUNT)
+        elif line and line.count(' ') == len(self._current_line):
+            indent = max(0, indent - INDENT_AMOUNT)
         elif line and ':' not in line and line.strip().startswith(('return', 'pass', 'raise', 'yield')):
-            self.indent_levels.pop()
+            indent = max(0, indent - INDENT_AMOUNT)
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
         logging.debug('running %r in interpreter', self.buffer)
@@ -367,15 +346,15 @@ class Repl(BpythonRepl):
         err = sys.stderr.read()
         if unfinished and not err:
             logging.debug('unfinished - line added to buffer')
-            return (None, None, False, self.indent_levels[-1])
+            return (None, None, False, indent)
         else:
             logging.debug('finished - buffer cleared')
             self.display_lines.extend(self.display_buffer_lines)
             self.display_buffer = []
             self.buffer = []
             if err:
-                self.indent_levels = [0]
-            return (out[:-1], err[:-1], True, self.indent_levels[-1])
+                indent = 0
+            return (out[:-1], err[:-1], True, indent)
 
     def paint(self, about_to_exit=False):
         """Returns an array of min_height or more rows and width columns, plus cursor position"""
