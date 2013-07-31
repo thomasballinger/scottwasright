@@ -10,8 +10,7 @@ from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
 from pygments import format
 
-from friendly import NotImplementedError
-import monkeypatch_site
+import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
 import events
 from fmtstr.fsarray import FSArray
@@ -96,7 +95,6 @@ class Repl(BpythonRepl):
         #TODO can't have parens on different lines yet
         logging.debug("calling reprint line with %r %r", lineno, tokens)
         self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
-        #raise NotImplementedError()
 
     @property
     def lines_for_display(self):
