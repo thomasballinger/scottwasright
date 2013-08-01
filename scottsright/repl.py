@@ -332,7 +332,7 @@ class Repl(BpythonRepl):
             indent = max(0, indent - INDENT_AMOUNT)
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
-        logging.debug('running %r in interpreter', self.buffer)
+        #logging.debug('running %r in interpreter', self.buffer)
         unfinished = self.interp.runsource('\n'.join(self.buffer))
         self.display_buffer.append(bpythonparse(format(self.tokenize(line), self.formatter))) #current line not added to display buffer if quitting
         sys.stdout.seek(out_spot)
@@ -361,7 +361,6 @@ class Repl(BpythonRepl):
         arr = FSArray(0, width)
         current_line_start_row = len(self.lines_for_display) - self.scroll_offset
 
-        logging.debug(self.lines_for_display)
         history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
         arr[:history.height,:history.width] = history
 
