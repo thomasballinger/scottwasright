@@ -93,10 +93,27 @@ class Repl(BpythonRepl):
         #TODO can't have parens on different lines yet
         logging.debug("calling reprint line with %r %r", lineno, tokens)
         self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
+    def reevaluate(self):
+        #TODO other implementations have a enter no-history method, could do
+        # that instead of clearing history and getting it rewritten
+        old_logical_lines = self.history
+        self.history = []
+        self.display_lines = []
 
-    @property
-    def lines_for_display(self):
-        return self.display_lines + self.display_buffer_lines
+        self.done = True # this keeps the first prompt correct
+        self.interp = code.InteractiveInterpreter()
+        self.completer = Autocomplete(self.interp.locals, self.config)
+        self.completer.autocomplete_mode = 'simple'
+        self.buffer = []
+        self.display_buffer = []
+        self.highlighted_paren = None
+
+        for line in old_logical_lines:
+            self._current_line = line
+            self.set_formatted_line()
+            self.on_enter()
+        self.cursor_offset_in_line = 0
+        self._current_line = ''
 
     ## wrappers for super functions so I can add descriptive docstrings
     def tokenize(self, s, newline=False):
@@ -112,6 +129,7 @@ class Repl(BpythonRepl):
         """
         return super(Repl, self).tokenize(s, newline)
 
+    ## Our own functions
     def unhighlight_paren(self):
         """set self.display_buffer[]"""
         if self.highlighted_paren is not None:
@@ -124,6 +142,10 @@ class Repl(BpythonRepl):
             logging.debug('with these tokens: %r', saved_tokens)
             new = bpythonparse(format(saved_tokens, self.formatter))
             self.display_buffer[lineno][:len(new)] = new
+
+    @property
+    def lines_for_display(self):
+        return self.display_lines + self.display_buffer_lines
 
     @property
     def display_buffer_lines(self):
@@ -148,28 +170,6 @@ class Repl(BpythonRepl):
     def __exit__(self, *args):
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
-
-    def dumb_print_output(self):
-        rows, columns = self.height, self.width
-        arr, cpos = self.paint()
-        arr[cpos[0], cpos[1]] = '~'
-        def my_print(msg):
-            self.orig_stdout.write(str(msg)+'\n')
-        my_print('X'*(columns+8))
-        my_print('X..'+('.'*(columns+2))+'..X')
-        for line in arr:
-            my_print('X...'+(line if line else ' '*len(line))+'...X')
-        logging.debug('line:')
-        logging.debug(repr(line))
-        my_print('X..'+('.'*(columns+2))+'..X')
-        my_print('X'*(columns+8))
-        return max(len(arr) - rows, 0)
-
-    def dumb_input(self):
-        for c in raw_input('>'):
-            if c in '/':
-                c = '\n'
-            self.process_event(c)
 
     @property
     def current_display_line(self):
@@ -201,27 +201,13 @@ class Repl(BpythonRepl):
             for _ in range(INDENT_AMOUNT):
                 self.add_normal_character(' ')
 
-    def reevaluate(self):
-        #TODO other implementations have a enter no-history method, could do
-        # that instead of clearing history and getting it rewritten
-        old_logical_lines = self.history
-        self.history = []
-        self.display_lines = []
-
-        self.done = True # this keeps the first prompt correct
-        self.interp = code.InteractiveInterpreter()
-        self.completer = Autocomplete(self.interp.locals, self.config)
-        self.completer.autocomplete_mode = 'simple'
-        self.buffer = []
-        self.display_buffer = []
-        self.highlighted_paren = None
-
-        for line in old_logical_lines:
-            self._current_line = line
-            self.set_formatted_line()
-            self.on_enter()
-        self.cursor_offset_in_line = 0
-        self._current_line = ''
+    def add_normal_character(self, char):
+        self._current_line = (self._current_line[:self.cursor_offset_in_line] +
+                             char +
+                             self._current_line[self.cursor_offset_in_line:])
+        self.cursor_offset_in_line += 1
+        self.cursor_offset_in_line, self._current_line = substitute_abbreviations(self.cursor_offset_in_line, self._current_line)
+        #TODO deal with characters that take up more than one space? do we care?
 
     def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
@@ -308,17 +294,10 @@ class Repl(BpythonRepl):
         self._current_line = self._current_line[:start] + value + self._current_line[self.cursor_offset_in_line:]
         self.cursor_offset_in_line = start + len(value)
 
-    def add_normal_character(self, char):
-        self._current_line = (self._current_line[:self.cursor_offset_in_line] +
-                             char +
-                             self._current_line[self.cursor_offset_in_line:])
-        self.cursor_offset_in_line += 1
-        self.cursor_offset_in_line, self._current_line = substitute_abbreviations(self.cursor_offset_in_line, self._current_line)
-        #TODO deal with characters that take up more than one space? do we care?
-
     def push(self, line):
-        """Run a line of code.
+        """Push a line of code onto the buffer, run the buffer
 
+        If the interpreter successfully runs the code, clear the buffer
         Return ("for stdout", "for_stderr", finished?)
         """
         self.buffer.append(line)
@@ -391,8 +370,28 @@ class Repl(BpythonRepl):
 
         return arr, (cursor_row, cursor_column)
 
-    def window_change_event(self):
-        print 'window changed!'
+    ## Debugging shims
+    def dumb_print_output(self):
+        rows, columns = self.height, self.width
+        arr, cpos = self.paint()
+        arr[cpos[0], cpos[1]] = '~'
+        def my_print(msg):
+            self.orig_stdout.write(str(msg)+'\n')
+        my_print('X'*(columns+8))
+        my_print('X..'+('.'*(columns+2))+'..X')
+        for line in arr:
+            my_print('X...'+(line if line else ' '*len(line))+'...X')
+        logging.debug('line:')
+        logging.debug(repr(line))
+        my_print('X..'+('.'*(columns+2))+'..X')
+        my_print('X'*(columns+8))
+        return max(len(arr) - rows, 0)
+
+    def dumb_input(self):
+        for c in raw_input('>'):
+            if c in '/':
+                c = '\n'
+            self.process_event(c)
 
     def __repr__(self):
         s = ''
