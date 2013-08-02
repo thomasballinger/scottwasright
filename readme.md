@@ -3,9 +3,7 @@ I asserted that you couldn't keep normal scrollback with cool bpython
 autocompletion, because curses. This is a proof of concept of why
 he was right when he disagreed.
 
-I'd like to create a bpython frontend that does this, or use it as
-a ipython frontend, but right now just reimplementing features to
-get a sense for how they're implemented in bpython.
+Hopefully this can be a bpython frontend in the short term
 
 Installation
 ------------
@@ -19,16 +17,15 @@ It's ready for people to start to use it a teensy bit!
   * `source venv/bin/activate`
 * `pip install -e . -r requirements.txt`
 
-
 Things to do:
-
-Terminal Wrapper Library
-------------------------
+-------------
 
 * add bpython-style tab completion
-    * inc. import completion
+    * integrate import completion
+    * fix filename completion
 * fix window size changing (happens now, but screws up easily)
 * fix rewind/undo behavior when scolls above top of screen - either disallow or
   break history
-* integrate rest of functionality from bpython.repl
+* integrate rest of functionality from bpython.repl.Repl
+* feature complete with bpython.cli
 * display library screen caching (rewrite only changing parts of terminal)
