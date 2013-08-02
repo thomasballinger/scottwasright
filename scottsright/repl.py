@@ -223,32 +223,19 @@ class Repl(BpythonRepl):
                 return True #TODO why?
             cw = self.current_string() or self.current_word
             if not cw:
-                return True
+                return
 
         # check to see if we can expand the current word
         cseq = os.path.commonprefix(self.matches)
-
         expanded_string = cseq[len(cw):]
         if expanded_string:
             self.current_word = cw + expanded_string #asdf
             self.matches_iter.update(cseq, self.matches)
             return
 
-        # swap current word for a match list item
         if self.matches:
-            # reset s if this is the nth result <- what does this mean?
-            #TODO why is that something we're interested in doing?
-            if self.matches_iter:
-                self.current_word = cw # clear the prev word for some reason
-
-            current_match = (self.matches_iter.previous()
-                             if back else self.matches_iter.next())
-
-            # update with the new match
-            if current_match: #TODO when would this be false?
-                self.current_word = current_match
-
-        return True
+            self.current_word = (self.matches_iter.previous()
+                                 if back else self.matches_iter.next())
 
     def add_normal_character(self, char):
         self._current_line = (self._current_line[:self.cursor_offset_in_line] +
