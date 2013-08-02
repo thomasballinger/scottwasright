@@ -214,40 +214,38 @@ class Repl(BpythonRepl):
                 self.add_normal_character(' ')
             return
 
-        # get the current word
+        # get the (manually typed or common-sequence completed from manually typed) current word
         if self.matches_iter:
             cw = self.matches_iter.current_word
         else:
-            self.complete(tab=True)
+            self.complete(tab=True) #TODO why do we call this here?
             if not self.config.auto_display_list and not self.list_win_visible:
-                return True
-            cw = self.current_string() or self.cw()
+                return True #TODO why?
+            cw = self.current_string() or self.current_word
             if not cw:
                 return True
 
         # check to see if we can expand the current word
-        cseq = None
-        seq = self.matches
-        cseq = os.path.commonprefix(seq)
+        cseq = os.path.commonprefix(self.matches)
 
-        if cseq:
-            expanded_string = cseq[len(cw):]
-        if cseq and expanded_string:
+        expanded_string = cseq[len(cw):]
+        if expanded_string:
             self.current_word = cw + expanded_string #asdf
             self.matches_iter.update(cseq, self.matches)
             return
 
         # swap current word for a match list item
         if self.matches:
-            # reset s if this is the nth result
+            # reset s if this is the nth result <- what does this mean?
+            #TODO why is that something we're interested in doing?
             if self.matches_iter:
-                self.current_word = cw
+                self.current_word = cw # clear the prev word for some reason
 
-            current_match = back and self.matches_iter.previous() \
-                                  or self.matches_iter.next()
+            current_match = (self.matches_iter.previous()
+                             if back else self.matches_iter.next())
 
-            # update s with the new match
-            if current_match:
+            # update with the new match
+            if current_match: #TODO when would this be false?
                 self.current_word = current_match
 
         return True
