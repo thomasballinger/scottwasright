@@ -12,7 +12,7 @@ It's ready for people to start to use it a teensy bit!
 
 * `git clone https://github.com/thomasballinger/scottwasright.git`
 * `cd scottwasright`
-* (these are optional suggested virtualenv step)
+* (these are suggested but optional virtualenv steps)
   * `virtualenv venv`
   * `source venv/bin/activate`
 * `pip install -e . -r requirements.txt`

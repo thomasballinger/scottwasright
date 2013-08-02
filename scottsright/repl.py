@@ -10,6 +10,7 @@ from bpython.repl import Repl as BpythonRepl
 from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
 from pygments import format
+from bpython import importcompletion
 
 import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
@@ -69,6 +70,9 @@ class Repl(BpythonRepl):
 
         self.width = None
         self.height = None
+
+        while importcompletion.find_coroutine():
+            pass
 
     ## Required by bpython.repl.Repl
     def current_line(self):
