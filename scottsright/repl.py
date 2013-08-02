@@ -1,10 +1,11 @@
 import sys
+import os
 import re
 import logging
 import code
 from cStringIO import StringIO
 
-from bpython.autocomplete import Autocomplete
+from bpython.autocomplete import Autocomplete, SUBSTRING, FUZZY, SIMPLE
 from bpython.repl import Repl as BpythonRepl
 from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
@@ -47,6 +48,7 @@ class Repl(BpythonRepl):
         interp = code.InteractiveInterpreter()
         config = Struct()
         loadini(config, default_config_path())
+        config.autocomplete_mode = SIMPLE # only one implemented currently
         logging.debug("starting parent init")
         super(Repl, self).__init__(interp, config)
 
@@ -193,13 +195,62 @@ class Repl(BpythonRepl):
         self._current_line = ' '*indent
         self.cursor_offset_in_line = len(self._current_line)
 
-    def on_tab(self):
-        cw = self.current_word
-        if cw and self.completer.matches:
-            self.current_word = self.completer.matches[0]
-        elif self._current_line.count(' ') == len(self._current_line):
-            for _ in range(INDENT_AMOUNT):
+    def on_tab(self, back=False):
+        """Do something on tab key
+        taken from bpython.cli
+
+        Does one of the following:
+        1) add space to move up to the next %4==0 column
+        2) complete the current word with characters common to all completions and
+        3) select the first or last match
+        4) select the next or previous match if already have a match
+        """
+        logging.debug('self.matches: %r', self.matches)
+        if not self._current_line[:self.cursor_offset_in_line].strip(): #if just whitespace left of cursor
+            front_white = (len(self._current_line[:self.cursor_offset_in_line]) -
+                len(self._current_line[:self.cursor_offset_in_line].lstrip()))
+            to_add = 4 - (front_white % INDENT_AMOUNT)
+            for _ in range(to_add):
                 self.add_normal_character(' ')
+            return
+
+        # get the current word
+        if self.matches_iter:
+            cw = self.matches_iter.current_word
+        else:
+            self.complete(tab=True)
+            if not self.config.auto_display_list and not self.list_win_visible:
+                return True
+            cw = self.current_string() or self.cw()
+            if not cw:
+                return True
+
+        # check to see if we can expand the current word
+        cseq = None
+        seq = self.matches
+        cseq = os.path.commonprefix(seq)
+
+        if cseq:
+            expanded_string = cseq[len(cw):]
+        if cseq and expanded_string:
+            self.current_word = cw + expanded_string #asdf
+            self.matches_iter.update(cseq, self.matches)
+            return
+
+        # swap current word for a match list item
+        if self.matches:
+            # reset s if this is the nth result
+            if self.matches_iter:
+                self.current_word = cw
+
+            current_match = back and self.matches_iter.previous() \
+                                  or self.matches_iter.next()
+
+            # update s with the new match
+            if current_match:
+                self.current_word = current_match
+
+        return True
 
     def add_normal_character(self, char):
         self._current_line = (self._current_line[:self.cursor_offset_in_line] +
@@ -218,16 +269,19 @@ class Repl(BpythonRepl):
             return
         if e in rl_char_sequences:
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
+            self.set_completion()
 
         # readline history commands
         elif e in ["", "[A"]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.back(False)
             self.cursor_offset_in_line = len(self._current_line)
+            self.set_completion()
         elif e in ["", "[B"]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.forward(False)
             self.cursor_offset_in_line = len(self._current_line)
+            self.set_completion()
         #TODO add rest of history commands
 
         elif e == "":
@@ -236,15 +290,19 @@ class Repl(BpythonRepl):
             raise SystemExit()
         elif e in ("\n", "\r"):
             self.on_enter()
+            self.set_completion()
         elif e in ["", "", "\x00", "\x11"]:
             pass #dunno what these are, but they screw things up #TODO find out
         elif e == '\t': #tab
             self.on_tab()
+        elif e == '[Z': #shift-tab
+            self.on_tab(back=True)
         elif e == '':
             self.undo()
+            self.set_completion()
         else:
             self.add_normal_character(e)
-        self.set_completion()
+            self.set_completion()
         self.set_formatted_line()
 
     def clean_up_current_line_for_exit(self):
@@ -266,7 +324,7 @@ class Repl(BpythonRepl):
 
         if self.list_win_visible and not self.config.auto_display_list:
             self.list_win_visible = False
-            self.matches_iter.update()
+            self.matches_iter.update(self.current_word)
             return
 
         if self.config.auto_display_list or tab:
@@ -274,20 +332,22 @@ class Repl(BpythonRepl):
 
     @property
     def current_word(self):
-        words = re.split(r'([\w_][\w0-9._]*)', self._current_line)
+        words = re.split(r'([\w_][\w0-9._]*[(]?)', self._current_line)
         chars = 0
         cw = None
         for word in words:
             chars += len(word)
             if chars == self.cursor_offset_in_line and word and word.count(' ') == 0:
                 cw = word
-        if cw and re.match(r'^[\w_][\w0-9._]*$', cw):
+        if cw and re.match(r'^[\w_][\w0-9._]*[(]?$', cw):
             return cw
 
     @current_word.setter
     def current_word(self, value):
         # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
         pos = self.cursor_offset_in_line - 1
+        if pos > -1 and self._current_line[pos] not in tuple(' :)'):
+            pos -= 1
         while pos > -1 and self._current_line[pos] not in tuple(' :()'):
             pos -= 1
         start = pos + 1; del pos
