@@ -3,6 +3,7 @@ import os
 import re
 import logging
 import code
+import threading
 from cStringIO import StringIO
 
 from bpython.autocomplete import Autocomplete, SUBSTRING, FUZZY, SIMPLE
@@ -70,9 +71,7 @@ class Repl(BpythonRepl):
 
         self.width = None
         self.height = None
-
-        while importcompletion.find_coroutine():
-            pass
+        self.start_background_tasks()
 
     ## Required by bpython.repl.Repl
     def current_line(self):
@@ -181,9 +180,17 @@ class Repl(BpythonRepl):
     def current_display_line(self):
         return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
 
+    def start_background_tasks(self):
+        t = threading.Thread(target=self.importcompletion_thread)
+        t.daemon = True
+        t.start()
+
+    def importcompletion_thread(self):
+        """quick tasks we want to do bits of during downtime"""
+        while importcompletion.find_coroutine(): # returns None when fully initialized
+            pass
+
     def on_enter(self):
-        #TODO redraw prev line to unhighlight parens, with cursor at -1 or something to avoid paren highlighting
-        # tokenize once more with cursor not at end of line anymore to remove parens
         self.cursor_offset_in_line = 10000
         self.unhighlight_paren()
         self.set_formatted_line()

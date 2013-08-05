@@ -20,12 +20,5 @@ It's ready for people to start to use it a teensy bit!
 Things to do:
 -------------
 
-* add bpython-style tab completion
-    * integrate import completion
-    * fix filename completion
-* fix window size changing (happens now, but screws up easily)
-* fix rewind/undo behavior when scolls above top of screen - either disallow or
-  break history
 * integrate rest of functionality from bpython.repl.Repl
 * feature complete with bpython.cli
-* display library screen caching (rewrite only changing parts of terminal)
