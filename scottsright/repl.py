@@ -434,6 +434,9 @@ class Repl(BpythonRepl):
         def my_print(msg):
             self.orig_stdout.write(str(msg)+'\n')
         my_print('X'*(columns+8))
+        my_print(' use "/" for enter '.center(columns+8, 'X'))
+        my_print(' "~" is the cursor '.center(columns+8, 'X'))
+        my_print('X'*(columns+8))
         my_print('X..'+('.'*(columns+2))+'..X')
         for line in arr:
             my_print('X...'+(line if line else ' '*len(line))+'...X')
