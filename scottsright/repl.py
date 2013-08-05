@@ -95,7 +95,6 @@ class Repl(BpythonRepl):
         "many WATs were had - it's the pos from the end of the line back"""
         return len(self._current_line) - self.cursor_offset_in_line
     def reprint_line(self, lineno, tokens):
-        #TODO can't have parens on different lines yet
         logging.debug("calling reprint line with %r %r", lineno, tokens)
         self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
     def reevaluate(self):
@@ -136,7 +135,7 @@ class Repl(BpythonRepl):
 
     ## Our own functions
     def unhighlight_paren(self):
-        """set self.display_buffer[]"""
+        """set self.display_buffer after """
         if self.highlighted_paren is not None:
             lineno, saved_tokens = self.highlighted_paren
             if lineno == len(self.display_buffer):
