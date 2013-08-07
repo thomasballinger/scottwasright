@@ -22,7 +22,7 @@ class Terminal(object):
         tc expected to have must have methods:
             get_cursor_position()
             get_screen_size() -> (row, col)
-            set_screen_position((row, column))
+            set_cursor_position((row, column))
             write(msg)
             scroll_down()
             erase_line()
@@ -44,7 +44,7 @@ class Terminal(object):
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
-        self.tc.set_screen_position((row, 1))
+        self.tc.set_cursor_position((row, 1))
         self.tc.erase_rest_of_line()
 
     def render_to_terminal(self, array, cursor_pos=(0,0)):
@@ -66,14 +66,14 @@ class Terminal(object):
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
         for row, line in zip(rows_for_use[:shared], array[:shared]):
-            self.tc.set_screen_position((row, 1))
+            self.tc.set_cursor_position((row, 1))
             self.tc.write(str(line))
             if len(line) < width:
                 self.tc.erase_rest_of_line()
         rest_of_lines = array[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
-            self.tc.set_screen_position((row, 1))
+            self.tc.set_cursor_position((row, 1))
             self.tc.erase_line()
         offscreen_scrolls = 0
         for line in rest_of_lines: # if array too big
@@ -84,10 +84,10 @@ class Terminal(object):
             else:
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
-            self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
+            self.tc.set_cursor_position((height, 1)) # since scrolling moves the cursor
             self.tc.write(str(line))
 
-        self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
+        self.tc.set_cursor_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
     def array_from_text(self, msg):

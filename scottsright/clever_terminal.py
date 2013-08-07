@@ -89,7 +89,7 @@ class Terminal(object):
         rows_for_use = range(self.top_usable_row, height + 1)
         shared = min(len(array), len(rows_for_use))
         for row, line, fline in zip(rows_for_use[:shared], array[:shared], farray[:shared]):
-            self.tc.set_screen_position((row, 1))
+            self.tc.set_cursor_position((row, 1))
             self.out_stream.write(termformat.formatted_text(line, fline))
             self.tc.erase_rest_of_line()
         #logging.debug('array: '+repr(array))
@@ -98,7 +98,7 @@ class Terminal(object):
         rest_of_flines = farray[shared:]
         rest_of_rows = rows_for_use[shared:]
         for row in rest_of_rows: # if array too small
-            self.tc.set_screen_position((row, 1))
+            self.tc.set_cursor_position((row, 1))
             self.tc.erase_line()
         #logging.debug('length of rest_of_lines: '+repr(rest_of_lines))
         offscreen_scrolls = 0
@@ -110,10 +110,10 @@ class Terminal(object):
             else:
                 offscreen_scrolls += 1
             logging.debug('new top_usable_row: %d' % self.top_usable_row)
-            self.tc.set_screen_position((height, 1)) # since scrolling moves the cursor
+            self.tc.set_cursor_position((height, 1)) # since scrolling moves the cursor
             self.out_stream.write(termformat.formatted_text(line, fline))
 
-        self.tc.set_screen_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
+        self.tc.set_cursor_position((cursor_pos[0]-offscreen_scrolls+self.top_usable_row, cursor_pos[1]+1))
         return offscreen_scrolls
 
     def get_event(self):
@@ -161,7 +161,7 @@ class Terminal(object):
         for i in range(1000):
             self.tc.erase_line()
             self.tc.down()
-        self.tc.set_screen_position((rows, 1))
+        self.tc.set_cursor_position((rows, 1))
         os.system('stty '+self.original_stty)
         self.tc.erase_rest_of_line()
 

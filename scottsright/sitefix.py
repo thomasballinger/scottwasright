@@ -10,5 +10,6 @@ def resetquit(builtins):
     __call__.__name__ = 'FakeQuitCall'
     builtins.quit.__class__.__call__ = __call__
 
-if 'site' in sys.modules:
-    resetquit(sys.modules['__builtin__'])
+def monkeypatch_quit():
+    if 'site' in sys.modules:
+        resetquit(sys.modules['__builtin__'])
