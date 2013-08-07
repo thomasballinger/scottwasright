@@ -78,4 +78,6 @@ def transpose_word_before_cursor(cursor_offset, line):
 
 if __name__ == '__main__':
     from pprint import pprint
-    pprint(char_sequences)
+    #pprint(char_sequences)
+    import doctest; doctest.testmod()
+
