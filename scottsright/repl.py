@@ -339,11 +339,11 @@ class Repl(BpythonRepl):
 
     @current_word.setter
     def current_word(self, value):
-        # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
+        # current word means word cursor is at the end of, so delete from cursor back to [ ."']
         pos = self.cursor_offset_in_line - 1
         if pos > -1 and self._current_line[pos] not in tuple(' :)'):
             pos -= 1
-        while pos > -1 and self._current_line[pos] not in tuple(' :()'):
+        while pos > -1 and self._current_line[pos] not in tuple(' :()\'"'):
             pos -= 1
         start = pos + 1; del pos
         self._current_line = self._current_line[:start] + value + self._current_line[self.cursor_offset_in_line:]
