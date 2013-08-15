@@ -394,10 +394,26 @@ class Repl(BpythonRepl):
 
         width, min_height = self.width, self.height
         arr = FSArray(0, width)
-        current_line_start_row = len(self.lines_for_display) - self.scroll_offset
+        current_line_start_row = len(self.lines_for_display) - max(0, self.scroll_offset)
 
-        history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
-        arr[:history.height,:history.width] = history
+        if current_line_start_row < 0: #if current line trying to be drawn off the top of the screen
+            #assert True, 'no room for current line: contiguity of history broken!'
+            msg = "#<---History contiguity broken by rewind--->"
+            arr[0, 0:min(len(msg), width)] = [msg[:width]]
+
+            # move screen back up a screen minus a line
+            self.scroll_offset = self.scroll_offset - self.height
+
+            current_line_start_row = len(self.lines_for_display) - max(-1, self.scroll_offset)
+
+            history = paint.paint_history(current_line_start_row - 1, width, self.lines_for_display)
+            arr[1:history.height+1,:history.width] = history
+
+            if arr.height <= min_height:
+                arr[min_height, 0] = ' ' # force scroll down to hide broken history message
+        else:
+            history = paint.paint_history(current_line_start_row, width, self.lines_for_display)
+            arr[:history.height,:history.width] = history
 
         current_line = paint.paint_current_line(min_height, width, self.current_display_line)
         arr[current_line_start_row:current_line_start_row + current_line.height,
