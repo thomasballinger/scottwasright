@@ -1,6 +1,6 @@
-While describing the differences between bpython and ipython with Scott,
+While describing the differences between bpython and ipython with @graue (Scott),
 I asserted that you couldn't keep normal scrollback with cool bpython
-autocompletion, because curses. This is a proof of concept of why
+autocompletion, because curses. This is a proof of concept for why
 he was right when he disagreed.
 
 Hopefully this can be a bpython frontend in the short term
