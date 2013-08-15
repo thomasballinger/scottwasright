@@ -206,6 +206,10 @@ class Repl(BpythonRepl):
         self._current_line = ' '*indent
         self.cursor_offset_in_line = len(self._current_line)
 
+    def only_whitespace_left_of_cursor(self):
+        """returns true if all characters on current line before cursor are whitespace"""
+        return self._current_line[:self.cursor_offset_in_line].strip()
+
     def on_tab(self, back=False):
         """Do something on tab key
         taken from bpython.cli
@@ -217,7 +221,7 @@ class Repl(BpythonRepl):
         4) select the next or previous match if already have a match
         """
         logging.debug('self.matches: %r', self.matches)
-        if not self._current_line[:self.cursor_offset_in_line].strip(): #if just whitespace left of cursor
+        if not self.only_whitespace_left_of_cursor():
             front_white = (len(self._current_line[:self.cursor_offset_in_line]) -
                 len(self._current_line[:self.cursor_offset_in_line].lstrip()))
             to_add = 4 - (front_white % INDENT_AMOUNT)

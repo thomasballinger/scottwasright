@@ -5,6 +5,7 @@ and the cursor location
 in the order of description at http://www.bigsmoke.us/readline/shortcuts"""
 
 from friendly import NotImplementedError
+import re
 char_sequences = {}
 
 INDENT = 4
@@ -35,11 +36,20 @@ def end_of_line(cursor_offset, line):
 
 @on('f')
 def forward_word(cursor_offset, line):
-    raise NotImplementedError()
+    patt = r"\s\S"
+    delta = re.search(patt, line[cursor_offset:]).end() - 1
+    return (cursor_offset + delta, line)
 
 @on('b')
 def back_word(cursor_offset, line):
-    raise NotImplementedError()
+    return (last_word_pos(line[:cursor_offset]), line)
+
+def last_word_pos(string):
+    """returns the start index of the last word of given string"""
+    patt = r'\S\s'
+    match = re.search(patt, string[::-1])
+    index = match and len(string) - match.end() + 1
+    return index or 0
 
 @on('[3~')
 def delete(cursor_offset, line):
@@ -92,4 +102,7 @@ def transpose_word_before_cursor(cursor_offset, line):
 
 if __name__ == '__main__':
     from pprint import pprint
-    pprint(char_sequences)
+    #pprint(char_sequences)
+    import doctest; doctest.testmod()
+
+
