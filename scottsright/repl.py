@@ -98,6 +98,7 @@ class Repl(BpythonRepl):
         logging.debug("calling reprint line with %r %r", lineno, tokens)
         self.display_buffer[lineno] = bpythonparse(format(tokens, self.formatter))
     def reevaluate(self):
+        """bpython.Repl.undo calls this"""
         #TODO other implementations have a enter no-history method, could do
         # that instead of clearing history and getting it rewritten
         old_logical_lines = self.history
@@ -434,6 +435,7 @@ class Repl(BpythonRepl):
             self.orig_stdout.write(str(msg)+'\n')
         my_print('X'*(columns+8))
         my_print(' use "/" for enter '.center(columns+8, 'X'))
+        my_print(' use "\\" for rewind '.center(columns+8, 'X'))
         my_print(' "~" is the cursor '.center(columns+8, 'X'))
         my_print('X'*(columns+8))
         my_print('X..'+('.'*(columns+2))+'..X')
@@ -449,6 +451,8 @@ class Repl(BpythonRepl):
         for c in raw_input('>'):
             if c in '/':
                 c = '\n'
+            elif c in '\\':
+                c = ''
             self.process_event(c)
 
     def __repr__(self):
