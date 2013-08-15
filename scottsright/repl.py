@@ -415,7 +415,7 @@ class Repl(BpythonRepl):
             visible_space_above = history.height
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
-            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
+            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.current_word, self.docstring, self.config)
 
             if visible_space_above >= infobox.height and not INFOBOX_ONLY_BELOW:
                 arr[current_line_start_row - infobox.height:current_line_start_row, 0:infobox.width] = infobox
