@@ -31,14 +31,19 @@ def paint_current_line(rows, columns, current_display_line):
     lines = display_linize(current_display_line, columns)
     return fsarray([(line+' '*columns)[:columns] for line in lines])
 
-def matches_lines(rows, columns, matches):
+def matches_lines(rows, columns, matches, current):
+    highlight_color = lambda x: red(on_blue(x))
     if not matches:
         return []
     max_match_width = max(len(m) for m in matches)
     words_wide = max(1, (columns - 1) / (max_match_width + 1))
     matches_lines = [fmtstr(' ').join(m.ljust(max_match_width)
-                              for m in matches[i:i+words_wide])
+                                        if m != current
+                                        else highlight_color(m) + ' '*(max_match_width - len(m))
+                                      for m in matches[i:i+words_wide])
                      for i in range(0, len(matches), words_wide)]
+    logging.debug('match: %r' % current)
+    logging.debug('matches_lines: %r' % matches_lines)
     return matches_lines
 
 def formatted_argspec(argspec):
@@ -52,7 +57,7 @@ def paint_infobox(rows, columns, matches, argspec, match, docstring, config):
              (display_linize(blue(formatted_argspec(argspec)), columns-2) if argspec else []) +
              (display_linize(str(argspec), columns-2) if argspec else []) +
              sum((display_linize(line, columns-2) for line in docstring.split('\n')) if docstring else [], []) +
-             (matches_lines(rows, columns, matches) if matches else [])
+             (matches_lines(rows, columns, matches, match) if matches else [])
              )
 
     # add borders

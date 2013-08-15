@@ -343,11 +343,11 @@ class Repl(BpythonRepl):
 
     @current_word.setter
     def current_word(self, value):
-        # current word means word cursor is at the end of, so delete from cursor back to [ .] assert self.current_word
+        # current word means word cursor is at the end of, so delete from cursor back to [ ."']
         pos = self.cursor_offset_in_line - 1
         if pos > -1 and self._current_line[pos] not in tuple(' :)'):
             pos -= 1
-        while pos > -1 and self._current_line[pos] not in tuple(' :()'):
+        while pos > -1 and self._current_line[pos] not in tuple(' :()\'"'):
             pos -= 1
         start = pos + 1; del pos
         self._current_line = self._current_line[:start] + value + self._current_line[self.cursor_offset_in_line:]
@@ -419,7 +419,7 @@ class Repl(BpythonRepl):
             visible_space_above = history.height
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
-            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.match, self.docstring, self.config)
+            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.current_word, self.docstring, self.config)
 
             if visible_space_above >= infobox.height and not INFOBOX_ONLY_BELOW:
                 arr[current_line_start_row - infobox.height:current_line_start_row, 0:infobox.width] = infobox
