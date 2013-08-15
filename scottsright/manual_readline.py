@@ -36,8 +36,9 @@ def end_of_line(cursor_offset, line):
 
 @on('f')
 def forward_word(cursor_offset, line):
-    patt = r"\s\S"
-    delta = re.search(patt, line[cursor_offset:]).end() - 1
+    patt = r"\S\s"
+    match = re.search(patt, line[cursor_offset:]+' ')
+    delta = match.end() - 1 if match else 0
     return (cursor_offset + delta, line)
 
 @on('b')

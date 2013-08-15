@@ -46,20 +46,56 @@ class TestManualReadline(unittest.TestCase):
 
     def test_forward_word(self):
         line = "going from here to_here"
+               #012345678901234567890123
         start_pos = 11
-        next_word_pos = 16
-        self.assertEquals(line[start_pos], 'h')
-        self.assertEquals(line[next_word_pos], 't')
+        next_word_pos = 15
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+        start_pos = 15
+        next_word_pos = 23
         expected = (next_word_pos, line)
         result = forward_word(start_pos, line)
         self.assertEquals(expected, result)
 
     def test_forward_word_tabs(self):
         line = "going from here      to_here"
+               #01234567890123456789012345678
         start_pos = 11
-        next_word_pos = 21
-        self.assertEquals(line[start_pos], 'h')
-        self.assertEquals(line[next_word_pos], 't')
+        next_word_pos = 15
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+        start_pos = 15
+        next_word_pos = 28
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+
+    def test_forward_word_end(self):
+        line = "going from here to_here"
+               #012345678901234567890123
+        start_pos = 16
+        next_word_pos = 23
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+        start_pos = 22
+        next_word_pos = 23
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+        start_pos = 23
+        next_word_pos = 23
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+
+    def test_forward_word_empty(self):
+        line = ""
+               #0
+        start_pos = 0
+        next_word_pos = 0
         expected = (next_word_pos, line)
         result = forward_word(start_pos, line)
         self.assertEquals(expected, result)
