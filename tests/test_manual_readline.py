@@ -46,9 +46,45 @@ class TestManualReadline(unittest.TestCase):
 
     def test_forward_word(self):
         line = "going from here to_here"
+        start_pos = 11
+        next_word_pos = 16
+        self.assertEquals(line[start_pos], 'h')
+        self.assertEquals(line[next_word_pos], 't')
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
 
-    def backward_word(self):
-        pass
+    def test_forward_word_tabs(self):
+        line = "going from here      to_here"
+        start_pos = 11
+        next_word_pos = 21
+        self.assertEquals(line[start_pos], 'h')
+        self.assertEquals(line[next_word_pos], 't')
+        expected = (next_word_pos, line)
+        result = forward_word(start_pos, line)
+        self.assertEquals(expected, result)
+
+    def test_back_word(self):
+        line = "going to here from_here"
+        start_pos = 14
+        prev_word_pos = 9
+        self.assertEquals(line[start_pos], 'f')
+        self.assertEquals(line[prev_word_pos], 'h')
+        expected = (prev_word_pos, line)
+        result = back_word(start_pos, line)
+        self.assertEquals(expected, result)
+
+    def test_last_word_pos(self):
+        line = "a word"
+        expected = 2
+        result = last_word_pos(line)
+        self.assertEquals(expected, result)
+
+    def test_last_word_pos_single_word(self):
+        line = "word"
+        expected = 0
+        result = last_word_pos(line)
+        self.assertEquals(expected, result)
 
     def test_delete(self):
         line = "deletion line"
