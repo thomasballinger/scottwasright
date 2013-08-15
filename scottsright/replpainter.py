@@ -53,8 +53,7 @@ def paint_infobox(rows, columns, matches, argspec, match, docstring, config):
     """Returns painted completions, argspec, match, docstring etc."""
     if not (rows and columns):
         return fsarray(0, 0)
-    lines = ([on_blue(red("Infobox test"))] +
-             (display_linize(blue(formatted_argspec(argspec)), columns-2) if argspec else []) +
+    lines = ((display_linize(blue(formatted_argspec(argspec)), columns-2) if argspec else []) +
              (display_linize(str(argspec), columns-2) if argspec else []) +
              sum((display_linize(line, columns-2) for line in docstring.split('\n')) if docstring else [], []) +
              (matches_lines(rows, columns, matches, match) if matches else [])
