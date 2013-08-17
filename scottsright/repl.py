@@ -31,18 +31,18 @@ logging.basicConfig(level=logging.DEBUG, filename='repl.log', datefmt='%M:%S')
 
 class StatusBar(BpythonInteraction):
     """StatusBar and Interaction for Repl
-    
+
     Passing of control back and forth between calls that use interact api
     (notify, confirm, file_prompt) like bpython.Repl.write2file and events
     on the main thread happens via those calls and self.wait_for_request_or_notify.
 
-    This means calling self.notify is required for the main thread
-    to regain control!
+    Calling one of these three is required for the main thread to regain control!
 
     This is probably a terrible idea, and better would be rewriting this
     functionality in a evented or callback style, but trying to integrate
     bpython.Repl code.
     """
+    #TODO Remove dependence on bpython.Repl, it's more complicated than it's worth!
     def __init__(self, initial_message='', permanent_text=""):
         self._current_line = ''
         self.cursor_offset_in_line = 0
@@ -86,7 +86,7 @@ class StatusBar(BpythonInteraction):
             else:
                 self.response_queue.put(False)
             self.escape()
-        elif e == "":
+        elif e == "\x1b":
             self.response_queue.put(False)
             self.escape()
         else: # add normal character
@@ -117,13 +117,14 @@ class StatusBar(BpythonInteraction):
 
     def wait_for_request_or_notify(self):
         try:
-            return self.request_or_notify_queue.get(True, 3)
+            r = self.request_or_notify_queue.get(True, 1)
         except Queue.Empty:
-            return False
+            raise Exception('Main thread blocked because task thread not calling back')
+        return r
 
     # interaction interface - should be called from other threads
     def notify(self, msg):
-        self.message(self, msg)
+        self.message(msg)
         self.request_or_notify_queue.put(msg)
     # below Really ought to be called from threads other than the mainloop because they block
     def confirm(self, q):
@@ -134,13 +135,10 @@ class StatusBar(BpythonInteraction):
         return self.response_queue.get()
     def file_prompt(self, s):
         """Expected to return a file name, given """
-        logging.debug('file_prompt called')
         self.prompt = s
         self.in_prompt = True
         self.request_or_notify_queue.put(s)
-        logging.debug('request placed on queue')
         r = self.response_queue.get()
-        logging.debug('got filename from response queue')
         return r
 
 class Repl(BpythonRepl):
@@ -238,6 +236,12 @@ class Repl(BpythonRepl):
             self.on_enter()
         self.cursor_offset_in_line = 0
         self._current_line = ''
+    def getstdout(self):
+        logging.debug('in getstdout')
+        lines = self.lines_for_display + [self.current_formatted_line]
+        s = '\n'.join([x.s for x in lines]) if lines else ''
+        logging.debug('got display lines')
+        return s
 
     ## wrappers for super functions so I can add descriptive docstrings
     def tokenize(self, s, newline=False):
@@ -283,15 +287,16 @@ class Repl(BpythonRepl):
         return lines
 
     def __enter__(self):
-        self.orig_stdin = sys.stdin
         self.orig_stdout = sys.stdout
         self.orig_stderr = sys.stderr
-
         sys.stdout = StringIO()
         sys.stderr = StringIO()
         return self
 
     def __exit__(self, *args):
+        sys.stderr.seek(0)
+        s = sys.stderr.read()
+        self.orig_stderr.write(s)
         sys.stdout = self.orig_stdout
         sys.stderr = self.orig_stderr
 
@@ -415,22 +420,25 @@ class Repl(BpythonRepl):
             self.set_completion()
         elif e in ["", "", "\x00", "\x11"]:
             pass #dunno what these are, but they screw things up #TODO find out
-        elif e == '\t': #tab
+        elif e == '\t': # tab
             self.on_tab()
-        elif e == '[Z': #shift-tab
+        elif e == '[Z': # shift-tab
             self.on_tab(back=True)
         elif e == '':
             self.undo()
             self.set_completion()
-        elif e == '\x13':
-            f = self.write2file
-            t = threading.Thread(target=f)
-            logging.debug('starting write2file thread, init\'d with %r', f)
+        elif e == '\x13': # ctrl-s for save
+            t = threading.Thread(target=self.write2file)
+            t.daemon = True
+            logging.debug('starting write2file thread')
             t.start()
-            time.sleep(1)
-            q = self.interact.wait_for_request_or_notify()
-            assert q, 'no requests or notify calls occurred'
-            self.add_normal_character('o')
+            self.interact.wait_for_request_or_notify()
+        elif e == '\x1b[19~': # F8 for pastebin
+            t = threading.Thread(target=self.pastebin)
+            t.daemon = True
+            logging.debug('starting pastebin thread')
+            t.start()
+            self.interact.wait_for_request_or_notify()
         else:
             self.add_normal_character(e)
             self.set_completion()
@@ -509,6 +517,13 @@ class Repl(BpythonRepl):
         sys.stderr.seek(err_spot)
         out = sys.stdout.read()
         err = sys.stderr.read()
+
+        # easier debugging: save only errors that aren't from this interpreter
+        oldstderr = sys.stderr
+        sys.stderr = StringIO()
+        oldstderr.seek(0)
+        sys.stderr.write(oldstderr.read(err_spot))
+
         if unfinished and not err:
             logging.debug('unfinished - line added to buffer')
             return (None, None, False, indent)
@@ -592,6 +607,8 @@ class Repl(BpythonRepl):
         my_print('X'*(columns+8))
         my_print(' use "/" for enter '.center(columns+8, 'X'))
         my_print(' use "\\" for rewind '.center(columns+8, 'X'))
+        my_print(' use "|" to raise an error '.center(columns+8, 'X'))
+        my_print(' use "$" to pastebin '.center(columns+8, 'X'))
         my_print(' "~" is the cursor '.center(columns+8, 'X'))
         my_print('X'*(columns+8))
         my_print('X..'+('.'*(columns+2))+'..X')
@@ -609,6 +626,13 @@ class Repl(BpythonRepl):
                 c = '\n'
             elif c in '\\':
                 c = ''
+            elif c in '|':
+                def r(): raise Exception('real errors should look like this')
+                t = threading.Thread(target=r)
+                t.daemon = True
+                t.start()
+            elif c in '$':
+                c = '[19~'
             self.process_event(c)
 
     def __repr__(self):

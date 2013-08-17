@@ -38,14 +38,14 @@ class Terminal(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        logging.debug("running __exit__")
-        self.tc.scroll_down()
-        row, _ = self.tc.get_cursor_position()
-        for i in range(1000):
-            self.tc.erase_line()
-            self.tc.down()
-        self.tc.set_cursor_position((row, 1))
-        self.tc.erase_rest_of_line()
+        logging.debug("running Terminal.__exit__")
+        #self.tc.scroll_down()
+        #row, _ = self.tc.get_cursor_position()
+        #for i in range(1000):
+        #    self.tc.erase_line()
+        #    self.tc.down()
+        #self.tc.set_cursor_position((row, 1))
+        #self.tc.erase_rest_of_line()
 
     def render_to_terminal(self, array, cursor_pos=(0,0)):
         """Renders array to terminal, returns the number of lines
