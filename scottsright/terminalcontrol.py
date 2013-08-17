@@ -79,6 +79,8 @@ class TerminalController(object):
                 self.sigwinch_counter = _SIGWINCH_COUNTER
                 self.in_buffer = chars + self.in_buffer
                 return events.WindowChangeEvent(*self.get_screen_size())
+            if chars == ['\x1b', '\x1b']:
+                return '\x1b'
             if chars and chars[0] != '\x1b':
                 return ''.join(chars)
             if len(chars) == 2 and chars[1] != '[':
