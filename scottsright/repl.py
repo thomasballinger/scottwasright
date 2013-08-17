@@ -4,10 +4,12 @@ import re
 import logging
 import code
 import threading
+import Queue
+import time
 from cStringIO import StringIO
 
 from bpython.autocomplete import Autocomplete, SUBSTRING, FUZZY, SIMPLE
-from bpython.repl import Repl as BpythonRepl
+from bpython.repl import Repl as BpythonRepl, Interaction as BpythonInteraction
 from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
 from pygments import format
@@ -25,7 +27,121 @@ from abbreviate import substitute_abbreviations
 INFOBOX_ONLY_BELOW = True
 INDENT_AMOUNT = 4
 
-logging.basicConfig(level=logging.DEBUG, filename='repl.log')
+logging.basicConfig(level=logging.DEBUG, filename='repl.log', datefmt='%M:%S')
+
+class StatusBar(BpythonInteraction):
+    """StatusBar and Interaction for Repl
+    
+    Passing of control back and forth between calls that use interact api
+    (notify, confirm, file_prompt) like bpython.Repl.write2file and events
+    on the main thread happens via those calls and self.wait_for_request_or_notify.
+
+    This means calling self.notify is required for the main thread
+    to regain control!
+
+    This is probably a terrible idea, and better would be rewriting this
+    functionality in a evented or callback style, but trying to integrate
+    bpython.Repl code.
+    """
+    def __init__(self, initial_message='', permanent_text=""):
+        self._current_line = ''
+        self.cursor_offset_in_line = 0
+        self.in_prompt = False
+        self.in_confirm = False
+        self.prompt = ''
+        self._message = initial_message
+        self.message_start_time = time.time()
+        self.message_time = 3
+        self.permanent_text = permanent_text
+        self.response_queue = Queue.Queue(maxsize=1)
+        self.request_or_notify_queue = Queue.Queue()
+
+    @property
+    def has_focus(self):
+        return self.in_prompt or self.in_confirm
+
+    def message(self, msg):
+        self.message_start_time = time.time()
+        self._message = msg
+
+    def _check_for_expired_message(self):
+        if self._message and time.time() > self.message_start_time + self.message_time:
+            self._message = ''
+
+    def process_event(self, e):
+        """Returns True if shutting down"""
+        assert self.in_prompt or self.in_confirm
+        if e in rl_char_sequences:
+            self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
+        elif e == "":
+            raise KeyboardInterrupt()
+        elif e == "":
+            raise SystemExit()
+        elif self.in_prompt and e in ("\n", "\r"):
+            self.response_queue.put(self._current_line)
+            self.escape()
+        elif self.in_confirm:
+            if e in ('y', 'Y'):
+                self.response_queue.put(True)
+            else:
+                self.response_queue.put(False)
+            self.escape()
+        elif e == "":
+            self.response_queue.put(False)
+            self.escape()
+        else: # add normal character
+            #TODO factor this out, same in both process_event methods
+            self._current_line = (self._current_line[:self.cursor_offset_in_line] +
+                                 e +
+                                 self._current_line[self.cursor_offset_in_line:])
+            self.cursor_offset_in_line += 1
+
+    def escape(self):
+        """unfocus from statusbar, clear prompt state, wait for notify call"""
+        self.wait_for_request_or_notify()
+        self.in_prompt = False
+        self.in_confirm = False
+        self.prompt = ''
+        self._current_line = ''
+
+    @property
+    def current_line(self):
+        self._check_for_expired_message()
+        if self.in_prompt:
+            return self.prompt + self._current_line
+        if self.in_confirm:
+            return self.prompt + "[y/n]"
+        if self._message:
+            return self._message
+        return self.permanent_text
+
+    def wait_for_request_or_notify(self):
+        try:
+            return self.request_or_notify_queue.get(True, 3)
+        except Queue.Empty:
+            return False
+
+    # interaction interface - should be called from other threads
+    def notify(self, msg):
+        self.message(self, msg)
+        self.request_or_notify_queue.put(msg)
+    # below Really ought to be called from threads other than the mainloop because they block
+    def confirm(self, q):
+        """Expected to return True or False, given question prompt q"""
+        self.prompt = q
+        self.in_confirm = True
+        self.request_or_notify_queue.put(q)
+        return self.response_queue.get()
+    def file_prompt(self, s):
+        """Expected to return a file name, given """
+        logging.debug('file_prompt called')
+        self.prompt = s
+        self.in_prompt = True
+        self.request_or_notify_queue.put(s)
+        logging.debug('request placed on queue')
+        r = self.response_queue.get()
+        logging.debug('got filename from response queue')
+        return r
 
 class Repl(BpythonRepl):
     """
@@ -51,8 +167,10 @@ class Repl(BpythonRepl):
         config = Struct()
         loadini(config, default_config_path())
         config.autocomplete_mode = SIMPLE # only one implemented currently
+        self.status_bar = StatusBar('welcome to bpython')
         logging.debug("starting parent init")
         super(Repl, self).__init__(interp, config)
+        self.interact = self.status_bar # overwriting, for bpython.Repl to use
 
         self._current_line = ''
         self.current_formatted_line = fmtstr('')
@@ -67,8 +185,6 @@ class Repl(BpythonRepl):
         self.cursor_offset_in_line = 0
         self.done = True
 
-        self.show_status_bar = True
-        self.status_bar_message = "Status Bar"
 
         self.paste_mode = False
 
@@ -256,6 +372,7 @@ class Repl(BpythonRepl):
                                  if back else self.matches_iter.next())
 
     def add_normal_character(self, char):
+        assert len(char) == 1
         self._current_line = (self._current_line[:self.cursor_offset_in_line] +
                              char +
                              self._current_line[self.cursor_offset_in_line:])
@@ -270,6 +387,8 @@ class Repl(BpythonRepl):
             logging.debug('window change to %d %d', e.width, e.height)
             self.width, self.height = e.width, e.height
             return
+        if self.status_bar.has_focus:
+            return self.status_bar.process_event(e)
         if e in rl_char_sequences:
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
             self.set_completion()
@@ -303,6 +422,15 @@ class Repl(BpythonRepl):
         elif e == '':
             self.undo()
             self.set_completion()
+        elif e == '\x13':
+            f = self.write2file
+            t = threading.Thread(target=f)
+            logging.debug('starting write2file thread, init\'d with %r', f)
+            t.start()
+            time.sleep(1)
+            q = self.interact.wait_for_request_or_notify()
+            assert q, 'no requests or notify calls occurred'
+            self.add_normal_character('o')
         else:
             self.add_normal_character(e)
             self.set_completion()
@@ -400,7 +528,8 @@ class Repl(BpythonRepl):
             self.clean_up_current_line_for_exit()
 
         width, min_height = self.width, self.height
-        if self.show_status_bar:
+        show_status_bar = bool(self.status_bar.current_line)
+        if show_status_bar:
             min_height -= 1
         arr = FSArray(0, width)
         current_line_start_row = len(self.lines_for_display) - max(0, self.scroll_offset)
@@ -449,8 +578,8 @@ class Repl(BpythonRepl):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.height, 0:infobox.width] = infobox
                 logging.debug('slamming infobox of shape %r into arr', infobox.shape)
 
-        if self.show_status_bar and not about_to_exit:
-            arr[max(arr.height, min_height), :] = paint.paint_statusbar(1, width, self.status_bar_message)
+        if show_status_bar and not about_to_exit:
+            arr[max(arr.height, min_height), :] = paint.paint_statusbar(1, width, self.status_bar.current_line)
         return arr, (cursor_row, cursor_column)
 
     ## Debugging shims
@@ -484,7 +613,7 @@ class Repl(BpythonRepl):
 
     def __repr__(self):
         s = ''
-        s += '<TerminalWrapper\n'
+        s += '<Repl\n'
         s += " cursor_offset_in_line:" + repr(self.cursor_offset_in_line) + '\n'
         s += " num display lines:" + repr(len(self.display_lines)) + '\n'
         s += " lines scrolled down:" + repr(self.scroll_offset) + '\n'

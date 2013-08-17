@@ -9,7 +9,7 @@ from fmtstr.fsarray import FSArray
 
 import events
 
-logging.basicConfig(filename='terminal.log',level=logging.DEBUG)
+logging.basicConfig(filename='terminal.log',level=logging.DEBUG, format='%(asctime)s %(message)s')
 
 
 class Terminal(object):

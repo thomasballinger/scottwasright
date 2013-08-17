@@ -1,6 +1,13 @@
 """Language for describing events that in terminal"""
+import threading
 class Event(object):
     pass
+
+class RefreshRequestEvent(Event):
+    def __init__(self):
+        self.who = threading.currentThread()
+    def __repr__(self):
+        return "<RefreshRequestEvent from %r>" % (self.who)
 
 class WindowChangeEvent(Event):
     def __init__(self, rows, columns):
