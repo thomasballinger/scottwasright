@@ -67,6 +67,9 @@ class Repl(BpythonRepl):
         self.cursor_offset_in_line = 0
         self.done = True
 
+        self.show_status_bar = True
+        self.status_bar_message = "Status Bar"
+
         self.paste_mode = False
 
         self.width = None
@@ -397,6 +400,8 @@ class Repl(BpythonRepl):
             self.clean_up_current_line_for_exit()
 
         width, min_height = self.width, self.height
+        if self.show_status_bar:
+            min_height -= 1
         arr = FSArray(0, width)
         current_line_start_row = len(self.lines_for_display) - max(0, self.scroll_offset)
 
@@ -444,6 +449,8 @@ class Repl(BpythonRepl):
                 arr[cursor_row + 1:cursor_row + 1 + infobox.height, 0:infobox.width] = infobox
                 logging.debug('slamming infobox of shape %r into arr', infobox.shape)
 
+        if self.show_status_bar and not about_to_exit:
+            arr[max(arr.height, min_height), :] = paint.paint_statusbar(1, width, self.status_bar_message)
         return arr, (cursor_row, cursor_column)
 
     ## Debugging shims
