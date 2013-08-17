@@ -14,12 +14,14 @@ from bpython.config import Struct, loadini, default_config_path
 from bpython.formatter import BPythonFormatter
 from pygments import format
 from bpython import importcompletion
+from bpython import translations
+translations.init()
 
 import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
 import events
 from fmtstr.fsarray import FSArray
-from fmtstr.fmtstr import fmtstr
+from fmtstr.fmtstr import fmtstr, FmtStr
 from fmtstr.bpythonparse import parse as bpythonparse
 from manual_readline import char_sequences as rl_char_sequences
 from abbreviate import substitute_abbreviations
@@ -123,7 +125,8 @@ class StatusBar(BpythonInteraction):
         return r
 
     # interaction interface - should be called from other threads
-    def notify(self, msg):
+    def notify(self, msg, n=3):
+        self.message_time = n
         self.message(msg)
         self.request_or_notify_queue.put(msg)
     # below Really ought to be called from threads other than the mainloop because they block
@@ -239,7 +242,8 @@ class Repl(BpythonRepl):
     def getstdout(self):
         logging.debug('in getstdout')
         lines = self.lines_for_display + [self.current_formatted_line]
-        s = '\n'.join([x.s for x in lines]) if lines else ''
+        s = '\n'.join([x.s if isinstance(x, FmtStr) else s
+                       for x in lines]) if lines else ''
         logging.debug('got display lines')
         return s
 
