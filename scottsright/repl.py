@@ -16,6 +16,7 @@ from pygments import format
 from bpython import importcompletion
 from bpython import translations
 translations.init()
+from bpython.translations import _
 
 import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
@@ -112,7 +113,7 @@ class StatusBar(BpythonInteraction):
         if self.in_prompt:
             return self.prompt + self._current_line
         if self.in_confirm:
-            return self.prompt + "[y/n]"
+            return self.prompt
         if self._message:
             return self._message
         return self.permanent_text
@@ -168,7 +169,7 @@ class Repl(BpythonRepl):
         config = Struct()
         loadini(config, default_config_path())
         config.autocomplete_mode = SIMPLE # only one implemented currently
-        self.status_bar = StatusBar('welcome to bpython')
+        self.status_bar = StatusBar(_('welcome to bpython'))
         logging.debug("starting parent init")
         super(Repl, self).__init__(interp, config)
         self.interact = self.status_bar # overwriting, for bpython.Repl to use
