@@ -1,5 +1,5 @@
 
-from fmtstr.fmtstr import *
+from fmtstr.fmtfuncs import *
 from fmtstr.fsarray import fsarray
 
 import logging

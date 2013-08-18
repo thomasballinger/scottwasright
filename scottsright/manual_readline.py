@@ -102,8 +102,8 @@ def transpose_word_before_cursor(cursor_offset, line):
     raise NotImplementedError()
 
 if __name__ == '__main__':
-    from pprint import pprint
-    #pprint(char_sequences)
     import doctest; doctest.testmod()
+    from pprint import pprint
+    pprint(char_sequences)
 
 

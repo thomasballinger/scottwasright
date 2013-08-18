@@ -1,6 +1,7 @@
-from scottsright.terminal import Terminal
+from fmtstr.terminal import Terminal
+from fmtstr.terminalcontrol import TerminalController
+
 from scottsright.repl import Repl
-from scottsright.terminalcontrol import TerminalController
 
 def main():
     with TerminalController() as tc:
