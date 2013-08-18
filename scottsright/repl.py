@@ -21,11 +21,13 @@ from fmtstr.fmtstr import fmtstr, FmtStr
 from fmtstr.bpythonparse import parse as bpythonparse
 
 from manual_readline import char_sequences as rl_char_sequences
+from abbreviate import substitute_abbreviations
 from interaction import StatusBar
 import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
 import fmtstr.events as events
 
+PROMPTCOLOR = 'cyan'
 INFOBOX_ONLY_BELOW = True
 INDENT_AMOUNT = 4
 
@@ -172,7 +174,7 @@ class Repl(BpythonRepl):
         #logging.debug('display_buffer:')
         #logging.debug(self.display_buffer)
         for display_line in self.display_buffer:
-            display_line = (self.ps2 if lines else self.ps1) + display_line
+            display_line = fmtstr(self.ps2 if lines else self.ps1, PROMPTCOLOR) + display_line
             for line in paint.display_linize(display_line, self.width):
                 lines.append(line)
         return lines
@@ -193,7 +195,7 @@ class Repl(BpythonRepl):
 
     @property
     def current_display_line(self):
-        return (self.ps1 if self.done else self.ps2) + self.current_formatted_line
+        return fmtstr(self.ps1 if self.done else self.ps2, PROMPTCOLOR) + self.current_formatted_line
 
     def start_background_tasks(self):
         t = threading.Thread(target=self.importcompletion_thread)
