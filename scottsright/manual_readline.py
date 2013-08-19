@@ -8,6 +8,8 @@ from friendly import NotImplementedError
 import re
 char_sequences = {}
 
+#TODO fix this - should use value in repl.
+# Sadly, this breaks the pure function aspect of backspace!
 INDENT = 4
 
 #TODO make an object out of this so instances can have keybindings via config

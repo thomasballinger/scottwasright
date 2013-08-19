@@ -19,6 +19,7 @@ from bpython.translations import _
 from fmtstr.fsarray import FSArray
 from fmtstr.fmtstr import fmtstr, FmtStr
 from fmtstr.bpythonparse import parse as bpythonparse
+from fmtstr.bpythonparse import func_for_letter
 
 from manual_readline import get_updated_char_sequences
 from abbreviate import substitute_abbreviations
@@ -30,7 +31,20 @@ from friendly import NotImplementedError
 
 PROMPTCOLOR = 'cyan'
 INFOBOX_ONLY_BELOW = True
-INDENT_AMOUNT = 4
+
+#TODO implement paste mode and figure out what the deal with config.paste_time is
+#TODO check config.auto_display_list
+#TODO figure out how config.list_win_visible behaves and implement it
+#TODO config.cli_trim_prompts
+#TODO implement config.syntax
+#TODO implement config.color_scheme['prompt'] and ['prompt_more]
+#TODO other autocomplete modes even though I hate them
+#TODO config.colors_scheme['error']
+#TODO better status bar message - keybindings like bpython.cli.init_wins
+#TODO figure out what config.flush_output is
+
+#TODO options.interactive, .quiet
+#TODO execute file if in args
 
 logging.basicConfig(level=logging.DEBUG, filename='repl.log', datefmt='%M:%S')
 
@@ -57,9 +71,16 @@ class Repl(BpythonRepl):
     def __init__(self):
         logging.debug("starting init")
         interp = code.InteractiveInterpreter()
+
         config = Struct()
         loadini(config, default_config_path())
         config.autocomplete_mode = SIMPLE # only one implemented currently
+
+        #TODO determine if this is supposed to use this, or if it should be
+        # frontend specific.
+        if config.cli_suggestion_width <= 0 or config.cli_suggestion_width > 1:
+            config.cli_suggestion_width = 1
+
         self.status_bar = StatusBar(_('welcome to bpython'))
         self.rl_char_sequences = get_updated_char_sequences(key_dispatch, config)
         logging.debug("starting parent init")
@@ -245,11 +266,12 @@ class Repl(BpythonRepl):
         if not self.only_whitespace_left_of_cursor():
             front_white = (len(self._current_line[:self.cursor_offset_in_line]) -
                 len(self._current_line[:self.cursor_offset_in_line].lstrip()))
-            to_add = 4 - (front_white % INDENT_AMOUNT)
+            to_add = 4 - (front_white % self.config.tab_length)
             for _ in range(to_add):
                 self.add_normal_character(' ')
             return
 
+        #TODO I'm not sure what's going on in the next 10 lines, particuarlly list_win_visible
         # get the (manually typed or common-sequence completed from manually typed) current word
         if self.matches_iter:
             cw = self.matches_iter.current_word
@@ -284,6 +306,12 @@ class Repl(BpythonRepl):
 
     def process_event(self, e):
         """Returns True if shutting down, otherwise mutates state of Repl object"""
+
+        # shim for weird key_dispatch #TODO patch bpython
+        def tint(x):
+            """Tuple if not tuple - returns one-item tuple if x isn't a tuple"""
+            return x if isinstance(x, tuple) else tuple(x)
+
         #logging.debug("processing event %r", e)
         if isinstance(e, events.WindowChangeEvent):
             logging.debug('window change to %d %d', e.width, e.height)
@@ -318,21 +346,24 @@ class Repl(BpythonRepl):
         elif e in key_dispatch[self.config.yank_from_buffer_key]:
             raise NotImplementedError()
 
-        elif e in key_dispatch[self.config.clear_screen]:
+        elif e in key_dispatch[self.config.clear_screen_key]:
             raise NotImplementedError()
         elif e in key_dispatch[self.config.last_output_key]:
             raise NotImplementedError()
         elif e in key_dispatch[self.config.show_source_key]:
             raise NotImplementedError()
+        elif e in key_dispatch[self.config.suspend_key]:
+            raise SystemExit()
         elif e == "":
             raise KeyboardInterrupt()
-        elif e in ("",) + key_dispatch[self.config.exit_key]:
+        elif e in ("",) + tint(key_dispatch[self.config.exit_key]):
             raise SystemExit()
         elif e in ("\n", "\r", "PAD_ENTER"):
             self.on_enter()
             self.set_completion()
         elif e in ["", "", "\x00", "\x11"]:
             pass #dunno what these are, but they screw things up #TODO find out
+            #TODO use a whitelist instead of a blacklist!
         elif e == '\t': # tab
             self.on_tab()
         elif e in ('[Z', "KEY_BTAB"): # shift-tab
@@ -418,11 +449,11 @@ class Repl(BpythonRepl):
         indent = len(re.match(r'[ ]*', line).group())
 
         if line.endswith(':'):
-            indent = max(0, indent + INDENT_AMOUNT)
+            indent = max(0, indent + self.config.tab_length)
         elif line and line.count(' ') == len(self._current_line):
-            indent = max(0, indent - INDENT_AMOUNT)
+            indent = max(0, indent - self.config.tab_length)
         elif line and ':' not in line and line.strip().startswith(('return', 'pass', 'raise', 'yield')):
-            indent = max(0, indent - INDENT_AMOUNT)
+            indent = max(0, indent - self.config.tab_length)
         out_spot = sys.stdout.tell()
         err_spot = sys.stderr.tell()
         #logging.debug('running %r in interpreter', self.buffer)
@@ -459,6 +490,9 @@ class Repl(BpythonRepl):
         to worry about that here, instead every frame is completely redrawn because
         less state is cool!
         """
+
+        #TODO allow custom background colors? I'm not sure about this
+        # use fmtstr.bpythonparse.color_for_letter(config.background) -> "black"
 
         if about_to_exit:
             self.clean_up_current_line_for_exit()
@@ -506,7 +540,8 @@ class Repl(BpythonRepl):
             visible_space_above = history.height
             visible_space_below = min_height - cursor_row
             info_max_rows = max(visible_space_above, visible_space_below)
-            infobox = paint.paint_infobox(info_max_rows, width, self.matches, self.argspec, self.current_word, self.docstring, self.config)
+
+            infobox = paint.paint_infobox(info_max_rows, int(width * self.config.cli_suggestion_width), self.matches, self.argspec, self.current_word, self.docstring, self.config)
 
             if visible_space_above >= infobox.height and not INFOBOX_ONLY_BELOW:
                 arr[current_line_start_row - infobox.height:current_line_start_row, 0:infobox.width] = infobox
