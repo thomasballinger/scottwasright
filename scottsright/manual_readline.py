@@ -101,6 +101,13 @@ def transpose_character_before_cursor(cursor_offset, line):
 def transpose_word_before_cursor(cursor_offset, line):
     raise NotImplementedError()
 
+# bonus functions (not part of readline)
+
+@on('\x1b\x7f')
+@on('\xff')
+def delete_word_from_cursor_back(cursor_offset, line):
+    raise NotImplementedError()
+
 if __name__ == '__main__':
     import doctest; doctest.testmod()
     from pprint import pprint

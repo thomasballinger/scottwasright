@@ -33,6 +33,8 @@ INDENT_AMOUNT = 4
 
 logging.basicConfig(level=logging.DEBUG, filename='repl.log', datefmt='%M:%S')
 
+from bpython.keys import cli_key_dispatch as key_dispatch
+
 class Repl(BpythonRepl):
     """
 
@@ -287,17 +289,18 @@ class Repl(BpythonRepl):
             return
         if self.status_bar.has_focus:
             return self.status_bar.process_event(e)
+
         if e in rl_char_sequences:
             self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
             self.set_completion()
 
         # readline history commands
-        elif e in ["", "[A"]:
+        elif e in ("[A", "KEY_DOWN") + key_dispatch[self.config.up_one_line_key]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.back(False)
             self.cursor_offset_in_line = len(self._current_line)
             self.set_completion()
-        elif e in ["", "[B"]:
+        elif e in ("[B", "KEY_UP") + key_dispatch[self.config.down_one_line_key]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.forward(False)
             self.cursor_offset_in_line = len(self._current_line)
@@ -317,7 +320,8 @@ class Repl(BpythonRepl):
             self.on_tab()
         elif e == '[Z': # shift-tab
             self.on_tab(back=True)
-        elif e == '':
+        #elif e == '':
+        elif e in key_dispatch[self.config.undo_key]:
             self.undo()
             self.set_completion()
         elif e == '\x13': # ctrl-s for save
