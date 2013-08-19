@@ -296,7 +296,7 @@ class Repl(BpythonRepl):
                                  if back else self.matches_iter.next())
 
     def add_normal_character(self, char):
-        assert len(char) == 1
+        assert len(char) == 1, repr(char)
         self._current_line = (self._current_line[:self.cursor_offset_in_line] +
                              char +
                              self._current_line[self.cursor_offset_in_line:])
