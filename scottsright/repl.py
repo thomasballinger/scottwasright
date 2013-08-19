@@ -20,12 +20,13 @@ from fmtstr.fsarray import FSArray
 from fmtstr.fmtstr import fmtstr, FmtStr
 from fmtstr.bpythonparse import parse as bpythonparse
 
-from manual_readline import char_sequences as rl_char_sequences
+from manual_readline import get_updated_char_sequences
 from abbreviate import substitute_abbreviations
 from interaction import StatusBar
 import sitefix; sitefix.monkeypatch_quit()
 import replpainter as paint
 import fmtstr.events as events
+from friendly import NotImplementedError
 
 PROMPTCOLOR = 'cyan'
 INFOBOX_ONLY_BELOW = True
@@ -60,6 +61,7 @@ class Repl(BpythonRepl):
         loadini(config, default_config_path())
         config.autocomplete_mode = SIMPLE # only one implemented currently
         self.status_bar = StatusBar(_('welcome to bpython'))
+        self.rl_char_sequences = get_updated_char_sequences(key_dispatch, config)
         logging.debug("starting parent init")
         super(Repl, self).__init__(interp, config)
         self.formatter = BPythonFormatter(config.color_scheme)
@@ -290,8 +292,8 @@ class Repl(BpythonRepl):
         if self.status_bar.has_focus:
             return self.status_bar.process_event(e)
 
-        if e in rl_char_sequences:
-            self.cursor_offset_in_line, self._current_line = rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
+        if e in self.rl_char_sequences:
+            self.cursor_offset_in_line, self._current_line = self.rl_char_sequences[e](self.cursor_offset_in_line, self._current_line)
             self.set_completion()
 
         # readline history commands
@@ -305,37 +307,53 @@ class Repl(BpythonRepl):
             self._current_line = self.rl_history.forward(False)
             self.cursor_offset_in_line = len(self._current_line)
             self.set_completion()
+        elif e in key_dispatch[self.config.search_key]:
+            raise NotImplementedError()
         #TODO add rest of history commands
 
+        # Need to figure out what these are, but I think they belong in manual_realine
+        # under slightly different names
+        elif e in key_dispatch[self.config.cut_to_buffer_key]:
+            raise NotImplementedError()
+        elif e in key_dispatch[self.config.yank_from_buffer_key]:
+            raise NotImplementedError()
+
+        elif e in key_dispatch[self.config.clear_screen]:
+            raise NotImplementedError()
+        elif e in key_dispatch[self.config.last_output_key]:
+            raise NotImplementedError()
+        elif e in key_dispatch[self.config.show_source_key]:
+            raise NotImplementedError()
         elif e == "":
             raise KeyboardInterrupt()
-        elif e == "":
+        elif e in ("",) + key_dispatch[self.config.exit_key]:
             raise SystemExit()
-        elif e in ("\n", "\r"):
+        elif e in ("\n", "\r", "PAD_ENTER"):
             self.on_enter()
             self.set_completion()
         elif e in ["", "", "\x00", "\x11"]:
             pass #dunno what these are, but they screw things up #TODO find out
         elif e == '\t': # tab
             self.on_tab()
-        elif e == '[Z': # shift-tab
+        elif e in ('[Z', "KEY_BTAB"): # shift-tab
             self.on_tab(back=True)
-        #elif e == '':
-        elif e in key_dispatch[self.config.undo_key]:
+        elif e in ('',) + key_dispatch[self.config.undo_key]:
             self.undo()
             self.set_completion()
-        elif e == '\x13': # ctrl-s for save
+        elif e in ('\x13',) + key_dispatch[self.config.save_key]: # ctrl-s for save
             t = threading.Thread(target=self.write2file)
             t.daemon = True
             logging.debug('starting write2file thread')
             t.start()
             self.interact.wait_for_request_or_notify()
-        elif e == '\x1b[19~': # F8 for pastebin
+        # F8 for pastebin
+        elif e in ('\x1b[19~',) + key_dispatch[self.config.pastebin_key]:
             t = threading.Thread(target=self.pastebin)
             t.daemon = True
             logging.debug('starting pastebin thread')
             t.start()
             self.interact.wait_for_request_or_notify()
+        #TODO add PAD keys hack as in bpython.cli
         else:
             self.add_normal_character(e)
             self.set_completion()
