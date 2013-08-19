@@ -21,4 +21,6 @@ def main():
                         array, cursor_pos = repl.paint()
                         scrolled = term.render_to_terminal(array, cursor_pos)
                         repl.scroll_offset += scrolled
-main()
+
+if __name__ == '__main__':
+    main()
