@@ -60,21 +60,25 @@ class Repl(BpythonRepl):
         self.status_bar = StatusBar(_('welcome to bpython'))
         logging.debug("starting parent init")
         super(Repl, self).__init__(interp, config)
-        self.interact = self.status_bar # overwriting, for bpython.Repl to use
-
-        self._current_line = ''
-        self.current_formatted_line = fmtstr('')
+        self.formatter = BPythonFormatter(config.color_scheme)
+        self.interact = self.status_bar # overwriting what bpython.Repl put there
+                                        # interact is called to interact with the status bar,
+                                        # so we're just using the same object
+        self._current_line = '' # line currently being edited, without '>>> '
+        self.current_formatted_line = fmtstr('') # needs to be updated before each draw
+                                                 # by calling set_formatted_line
         self.display_lines = [] # lines separated whenever logical line
                                 # length goes over what the terminal width
                                 # was at the time of original output
         self.history = [] # this is every line that's been executed;
                                 # it gets smaller on rewind
-        self.display_buffer = []
-        self.formatter = BPythonFormatter(config.color_scheme)
+        self.display_buffer = [] # formatted version of lines in the buffer
+                                 # kept around so we can unhighlight parens
+                                 # using self.reprint_line as called by
+                                 # bpython.Repl
         self.scroll_offset = 0
-        self.cursor_offset_in_line = 0
+        self.cursor_offset_in_line = 0 # from the left, 0 means first char
         self.done = True
-
 
         self.paste_mode = False
 
@@ -88,11 +92,11 @@ class Repl(BpythonRepl):
         return self._current_line
     def echo(self, msg, redraw=True):
         """
-        Notification that redrawing the current line is necessary (we dont' generally
+        Notification that redrawing the current line is necessary (we don't
         care, since we always redraw the whole screen)
 
-        Supposed to parse and echo a formatted string with appropriate attributes. It
-        srings. It won't update the screen if it's reevaluating the code (as it
+        Supposed to parse and echo a formatted string with appropriate attributes.
+        It's not supposed to update the screen if it's reevaluating the code (as it
         does with undo)."""
         logging.debug("echo called with %r" % msg)
     def cw(self):
@@ -430,7 +434,13 @@ class Repl(BpythonRepl):
             return (out[:-1], err[:-1], True, indent)
 
     def paint(self, about_to_exit=False):
-        """Returns an array of min_height or more rows and width columns, plus cursor position"""
+        """Returns an array of min_height or more rows and width columns, plus cursor position
+
+        Paints the entire screen - ideally the terminal display layer will take a diff and only
+        write to the screen in portions that have changed, but the idea is that we don't need
+        to worry about that here, instead every frame is completely redrawn because
+        less state is cool!
+        """
 
         if about_to_exit:
             self.clean_up_current_line_for_exit()
