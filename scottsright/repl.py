@@ -133,11 +133,9 @@ class Repl(BpythonRepl):
         self.cursor_offset_in_line = 0
         self._current_line = ''
     def getstdout(self):
-        logging.debug('in getstdout')
         lines = self.lines_for_display + [self.current_formatted_line]
-        s = '\n'.join([x.s if isinstance(x, FmtStr) else s
+        s = '\n'.join([x.s if isinstance(x, FmtStr) else x
                        for x in lines]) if lines else ''
-        logging.debug('got display lines')
         return s
 
     ## wrappers for super functions so I can add descriptive docstrings
@@ -175,8 +173,6 @@ class Repl(BpythonRepl):
     @property
     def display_buffer_lines(self):
         lines = []
-        #logging.debug('display_buffer:')
-        #logging.debug(self.display_buffer)
         for display_line in self.display_buffer:
             display_line = fmtstr(self.ps2 if lines else self.ps1, PROMPTCOLOR) + display_line
             for line in paint.display_linize(display_line, self.width):
