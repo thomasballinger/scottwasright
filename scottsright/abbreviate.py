@@ -14,5 +14,5 @@ def substitute_abbreviations(cursor_offset, line):
     return cursor_offset, new_line
 
 if __name__ == '__main__':
-    print substitute_abbreviations(0, 'improt asdf')
-    print substitute_abbreviations(0, 'foo(x, y() - 2.3242) + "asdf"')
+    print(substitute_abbreviations(0, 'improt asdf'))
+    print(substitute_abbreviations(0, 'foo(x, y() - 2.3242) + "asdf"'))

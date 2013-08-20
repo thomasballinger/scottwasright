@@ -325,12 +325,12 @@ class Repl(BpythonRepl):
             self.set_completion()
 
         # readline history commands
-        elif e in ("[A", "KEY_DOWN") + key_dispatch[self.config.up_one_line_key]:
+        elif e in ("[A", "KEY_UP") + key_dispatch[self.config.up_one_line_key]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.back(False)
             self.cursor_offset_in_line = len(self._current_line)
             self.set_completion()
-        elif e in ("[B", "KEY_UP") + key_dispatch[self.config.down_one_line_key]:
+        elif e in ("[B", "KEY_DOWN") + key_dispatch[self.config.down_one_line_key]:
             self.rl_history.enter(self._current_line)
             self._current_line = self.rl_history.forward(False)
             self.cursor_offset_in_line = len(self._current_line)
