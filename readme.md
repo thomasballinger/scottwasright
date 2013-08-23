@@ -3,7 +3,12 @@ I asserted that you couldn't keep normal scrollback with cool bpython
 autocompletion, because curses. This is a proof of concept for why
 he was right when he disagreed.
 
-Hopefully this can be a bpython frontend in the short term
+This repo is inactive, the code is being used for a bpython frontend.
+For now, see
+[my bpython
+fork](https://bitbucket.org/thomasballinger/bpython/commits/branch/add-scroll-frontend),
+but it'll hopefully soon be merged, and executable with an installation of
+bpython with the command `bpython-scroll`.
 
 Installation
 ------------
