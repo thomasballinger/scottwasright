@@ -17,3 +17,5 @@ It's ready for people to start to use it a teensy bit!
   * `virtualenv venv`
   * `source venv/bin/activate`
 * `pip install -e . -r requirements.txt`
+
+BUT the version of fmtstr this code needs doesn't exist anymore, so if one really wanted to run the code they'd need to check out a version of https://github.com/thomasballinger/curtsies old enough that it was still called fmtstr.
